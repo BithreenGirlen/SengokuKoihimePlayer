@@ -72,6 +72,7 @@ private:
     void AdjustOffset(int iXAddOffset, int iYAddOffset);
     void ResizeBuffer();
     void IncrementAnimationIndex();
+    void ResetAnimationIndex();
 
     void StartThreadpoolTimer();
     void EndThreadpoolTimer();

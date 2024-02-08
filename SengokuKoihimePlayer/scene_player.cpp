@@ -192,6 +192,7 @@ void CScenePlayer::Next()
 		EndThreadpoolTimer();
 		++m_nIndex;
 	}
+	ResetAnimationIndex();
 	if (m_nIndex >= m_image_info.size())m_nIndex = 0;
 	Update();
 }
@@ -294,10 +295,6 @@ bool CScenePlayer::LoadImageToMemory(const wchar_t* pzFilePath)
 	hr = pWicFormatConverter->GetSize(&s.uiWidth, &s.uiHeight);
 	if (FAILED(hr))return false;
 
-	CComPtr<IWICBitmap> pWicBitmap;
-	hr = pWicImageFactory->CreateBitmapFromSource(pWicFormatConverter, WICBitmapCacheOnDemand, &pWicBitmap);
-	if (FAILED(hr))return false;
-
 	CComPtr<IWICBitmapScaler> pWicBmpScaler;
 	hr = pWicImageFactory->CreateBitmapScaler(&pWicBmpScaler);
 	if (FAILED(hr))return false;
@@ -309,17 +306,17 @@ bool CScenePlayer::LoadImageToMemory(const wchar_t* pzFilePath)
 		fScale = 1.25f;
 	}
 
-	hr = pWicBmpScaler->Initialize(pWicBitmap, static_cast<UINT>(s.uiWidth * fScale), static_cast<UINT>(s.uiHeight * fScale), WICBitmapInterpolationMode::WICBitmapInterpolationModeCubic);
+	hr = pWicBmpScaler->Initialize(pWicFormatConverter, static_cast<UINT>(s.uiWidth * fScale), static_cast<UINT>(s.uiHeight * fScale), WICBitmapInterpolationMode::WICBitmapInterpolationModeCubic);
 	if (FAILED(hr))return false;
 	hr = pWicBmpScaler.p->GetSize(&s.uiWidth, &s.uiHeight);
 
-	CComPtr<IWICBitmap> pWicBitmap2;
-	hr = pWicImageFactory->CreateBitmapFromSource(pWicBmpScaler, WICBitmapCacheOnDemand, &pWicBitmap2);
+	CComPtr<IWICBitmap> pWicBitmap;
+	hr = pWicImageFactory->CreateBitmapFromSource(pWicBmpScaler, WICBitmapCacheOnDemand, &pWicBitmap);
 	if (FAILED(hr))return false;
 
 	CComPtr<IWICBitmapLock> pWicBitmapLock;
 	WICRect wicRect{ 0, 0, static_cast<INT>(s.uiWidth), static_cast<INT>(s.uiHeight) };
-	hr = pWicBitmap2->Lock(&wicRect, WICBitmapLockRead, &pWicBitmapLock);
+	hr = pWicBitmap->Lock(&wicRect, WICBitmapLockRead, &pWicBitmapLock);
 	if (FAILED(hr))return false;
 
 	UINT uiStride;
@@ -328,7 +325,7 @@ bool CScenePlayer::LoadImageToMemory(const wchar_t* pzFilePath)
 
 	s.iStride = static_cast<INT>(uiStride);
 	s.pixels.resize(static_cast<size_t>(s.iStride * s.uiHeight));
-	hr = pWicBitmap2->CopyPixels(nullptr, uiStride, static_cast<UINT>(s.pixels.size()), s.pixels.data());
+	hr = pWicBitmap->CopyPixels(nullptr, uiStride, static_cast<UINT>(s.pixels.size()), s.pixels.data());
 	if (FAILED(hr))return false;
 
 	m_image_info.push_back(s);
@@ -442,7 +439,7 @@ void CScenePlayer::ResizeBuffer()
 		m_pD2d1DeviceContext->SetTarget(pD2d1Bitmap1);
 	}
 }
-/*コマ番号増進*/
+/*コマ番号逓加*/
 void CScenePlayer::IncrementAnimationIndex()
 {
 	if (m_nIndex < m_image_info.size())
@@ -469,8 +466,7 @@ void CScenePlayer::IncrementAnimationIndex()
 				++m_nAnimationIndex;
 				if (m_nAnimationIndex >= kAnimationLength)
 				{
-					m_uiPortion = D2D_POINT_2U{};
-					m_nAnimationIndex = 0;
+					ResetAnimationIndex();
 					if (m_nIndex >= SceneIndex::kFirstAnimation && m_nIndex < SceneIndex::kSecondAnimation)
 					{
 						m_nIndex = SceneIndex::kFirstAnimation;
@@ -488,6 +484,12 @@ void CScenePlayer::IncrementAnimationIndex()
 		}
 	}
 }
+
+void CScenePlayer::ResetAnimationIndex()
+{
+	m_uiPortion = D2D_POINT_2U{};
+	m_nAnimationIndex = 0;
+}
 /*コマ送り開始*/
 void CScenePlayer::StartThreadpoolTimer()
 {
@@ -496,8 +498,7 @@ void CScenePlayer::StartThreadpoolTimer()
 	m_timer = ::CreateThreadpoolTimer(TimerCallback, this, nullptr);
 	if (m_timer != nullptr)
 	{
-		m_uiPortion = D2D_POINT_2U{};
-		m_nAnimationIndex = 0;
+		ResetAnimationIndex();
 		FILETIME FileDueTime{};
 		ULARGE_INTEGER ulDueTime{};
 		ulDueTime.QuadPart = static_cast<ULONGLONG>(-(1LL * 10 * 1000 * m_interval));
