@@ -180,19 +180,27 @@ void CScenePlayer::Next()
 	else if (m_nIndex >= SceneIndex::kFirstAnimation && m_nIndex < SceneIndex::kSecondAnimation)
 	{
 		if (m_bPause)IncrementAnimationIndex();
-		else m_nIndex = SceneIndex::kSecondAnimation;
+		else
+		{
+			ResetAnimationIndex();
+			m_nIndex = SceneIndex::kSecondAnimation;
+		}
+
 	}
 	else if (m_nIndex >= SceneIndex::kSecondAnimation && m_nIndex < SceneIndex::kFin)
 	{
 		if (m_bPause)IncrementAnimationIndex();
-		else m_nIndex = SceneIndex::kFin;
+		else
+		{
+			ResetAnimationIndex();
+			m_nIndex = SceneIndex::kFin;
+		}
 	}
 	else
 	{
 		EndThreadpoolTimer();
 		++m_nIndex;
 	}
-	ResetAnimationIndex();
 	if (m_nIndex >= m_image_info.size())m_nIndex = 0;
 	Update();
 }

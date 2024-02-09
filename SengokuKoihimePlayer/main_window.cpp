@@ -618,11 +618,12 @@ void CMainWindow::SetPlayFiles(const wchar_t* pwzImageFolderPath, const wchar_t*
         {
             size_t nWait1Index = std::distance(imageFiles.begin(), iter);
             std::swap(imageFiles.at(0), imageFiles.at(nWait1Index));
+            ++nWait1Index;
             if (nWait1Index < imageFiles.size())
             {
-                std::swap(imageFiles.at(0), imageFiles.at(nWait1Index + 1));
+                std::swap(imageFiles.at(0), imageFiles.at(nWait1Index));
             }
-            m_pScenePlayer->SetFirstScene(nWait1Index + 1);
+            m_pScenePlayer->SetFirstScene(nWait1Index);
         }
 
         m_bPlayReady = m_pScenePlayer->SetFiles(imageFiles);
