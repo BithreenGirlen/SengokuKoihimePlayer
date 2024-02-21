@@ -28,7 +28,7 @@ CScenePlayer::CScenePlayer(HWND hWnd)
 	hr = pD3d11Device->QueryInterface(__uuidof(IDXGIDevice1), (void**)&pDxgDevice1);
 	if (FAILED(hr))return;
 
-	hr = pDxgDevice1->SetMaximumFrameLatency(1);
+	hr = pDxgDevice1->SetMaximumFrameLatency(6);
 	if (FAILED(hr))return;
 
 	CComPtr<IDXGIAdapter> pDxgiAdapter;
@@ -53,7 +53,7 @@ CScenePlayer::CScenePlayer(HWND hWnd)
 	desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
 	desc.SampleDesc.Count = 1;
 	desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-	desc.BufferCount = 1;
+	desc.BufferCount = 2;
 	desc.SwapEffect = DXGI_SWAP_EFFECT_SEQUENTIAL;
 
 	hr = pDxgiFactory2->CreateSwapChainForHwnd(pDxgDevice1, hWnd, &desc, nullptr, nullptr, &m_pDxgiSwapChain1);

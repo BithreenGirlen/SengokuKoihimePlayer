@@ -181,15 +181,25 @@ LRESULT CMainWindow::OnClose()
 /*WM_PAINT*/
 LRESULT CMainWindow::OnPaint()
 {
-    PAINTSTRUCT ps;
-    HDC hdc = ::BeginPaint(m_hWnd, &ps);
-
-    if (m_pScenePlayer != nullptr)
+    if (!m_bNoLimit)
     {
-        m_pScenePlayer->DisplayImage();
-    }
+        PAINTSTRUCT ps;
+        HDC hdc = ::BeginPaint(m_hWnd, &ps);
 
-    ::EndPaint(m_hWnd, &ps);
+        if (m_pScenePlayer != nullptr)
+        {
+            m_pScenePlayer->DisplayImage();
+        }
+
+        ::EndPaint(m_hWnd, &ps);
+    }
+    else
+    {
+        if (m_pScenePlayer != nullptr)
+        {
+            m_pScenePlayer->DisplayImage();
+        }
+    }
 
     return 0;
 }
@@ -234,6 +244,9 @@ LRESULT CMainWindow::OnCommand(WPARAM wParam)
             break;
         case Menu::kPauseImage:
             MenuOnPauseImage();
+            break;
+        case Menu::kNolimit:
+            MenuOnNoLimit();
             break;
         }
     }
@@ -389,6 +402,8 @@ void CMainWindow::InitialiseMenuBar()
     kMenuImage = ::CreateMenu();
     iRet = ::AppendMenuA(kMenuImage, MF_STRING, Menu::kPauseImage, "Pause");
     if (iRet == 0)goto failed;
+    iRet = ::AppendMenuA(kMenuImage, MF_STRING, Menu::kNolimit, "No limit");
+    if (iRet == 0)goto failed;
 
     hMenuBar = ::CreateMenu();
     if (hMenuBar == nullptr) goto failed;
@@ -438,7 +453,6 @@ void CMainWindow::MenuOnOpen()
     {
         SetPlayerFolder(wstrFolder.c_str());
         CreateFolderList(wstrFolder.c_str());
-
     }
 }
 /*次フォルダに移動*/
@@ -528,6 +542,23 @@ void CMainWindow::MenuOnPauseImage()
         }
     }
 }
+/*再生速度制限有無*/
+void CMainWindow::MenuOnNoLimit()
+{
+    if (m_pScenePlayer != nullptr)
+    {
+        HMENU hMenuBar = ::GetMenu(m_hWnd);
+        if (hMenuBar != nullptr)
+        {
+            HMENU hMenu = ::GetSubMenu(hMenuBar, MenuBar::kImage);
+            if (hMenu != nullptr)
+            {
+                m_bNoLimit ^= true;
+                ::CheckMenuItem(hMenu, Menu::kNolimit, m_bNoLimit ? MF_CHECKED : MF_UNCHECKED);
+            }
+        }
+    }
+}
 /*標題変更*/
 void CMainWindow::ChangeWindowTitle(const wchar_t* pzTitle)
 {
@@ -590,8 +621,6 @@ void CMainWindow::SetPlayerFolder(const wchar_t* pwzFolderPath)
     GetAudioFolderPath(pwzFolderPath, wstrAudioFolderPath);
 
     SetPlayFiles(pwzFolderPath, wstrAudioFolderPath.c_str());
-
-    ChangeWindowTitle(m_bPlayReady ? pwzFolderPath : nullptr);
 }
 /*再生ファイル群設定*/
 void CMainWindow::SetPlayFiles(const wchar_t* pwzImageFolderPath, const wchar_t* pwzAudioFolderPath)

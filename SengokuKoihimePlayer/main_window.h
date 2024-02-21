@@ -37,7 +37,7 @@ private:
 
 	enum Menu{kOpen = 1, kNextFolder, kForeFolder,
 		kNextAudio, kBack, kPlay, kLoop, kVolume,
-		kPauseImage,};
+		kPauseImage, kNolimit};
 	enum MenuBar{kFolder, kAudio, kImage};
 	POINT m_CursorPos{};
 	bool m_bSpeedSet = false;
@@ -45,6 +45,7 @@ private:
 	HMENU m_hMenuBar = nullptr;
 	bool m_bHideBar = false;
 	bool m_bPlayReady = false;
+	bool m_bNoLimit = false;
 
 	std::vector<std::wstring> m_folders;
 	size_t m_nIndex = 0;
@@ -62,6 +63,7 @@ private:
 	void MenuOnVolume();
 
 	void MenuOnPauseImage();
+	void MenuOnNoLimit();
 
 	void ChangeWindowTitle(const wchar_t* pzTitle);
 	void SwitchWindowMode();
