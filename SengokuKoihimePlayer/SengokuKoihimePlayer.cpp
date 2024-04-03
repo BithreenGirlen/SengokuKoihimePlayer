@@ -1,5 +1,4 @@
-﻿// SengokuKoihimePlayer.cpp : アプリケーションのエントリ ポイントを定義します。
-//
+﻿
 
 #include "framework.h"
 #include "SengokuKoihimePlayer.h"
@@ -10,21 +9,13 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
                      _In_ LPWSTR    lpCmdLine,
                      _In_ int       nCmdShow)
 {
-    UNREFERENCED_PARAMETER(hPrevInstance);
-    UNREFERENCED_PARAMETER(lpCmdLine);
-
     int iRet = 0;
-    CMainWindow* pMainWindow = new CMainWindow();
-    if (pMainWindow != nullptr)
+    CMainWindow sMainWindow;
+    bool bRet = sMainWindow.Create(hInstance, L"SengokuKoihime player");
+    if (bRet)
     {
-        bool bRet = pMainWindow->Create(hInstance);
-        if (bRet)
-        {
-            ::ShowWindow(pMainWindow->GetHwnd(), nCmdShow);
-            iRet = pMainWindow->MessageLoop();
-        }
-
-        delete pMainWindow;
+        ::ShowWindow(sMainWindow.GetHwnd(), nCmdShow);
+        iRet = sMainWindow.MessageLoop();
     }
 
     return iRet;

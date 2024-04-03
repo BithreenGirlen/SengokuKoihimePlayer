@@ -6,10 +6,10 @@
 #include "main_window.h"
 #include "win_dialogue.h"
 #include "win_filesystem.h"
+#include "sngk.h"
 #include "media_setting_dialogue.h"
 #include "Resource.h"
 
-#pragma comment(lib, "Comctl32.lib")
 
 CMainWindow::CMainWindow()
 {
@@ -21,7 +21,7 @@ CMainWindow::~CMainWindow()
 
 }
 
-bool CMainWindow::Create(HINSTANCE hInstance)
+bool CMainWindow::Create(HINSTANCE hInstance, const wchar_t* pwzWindowName)
 {
     WNDCLASSEXW wcex{};
 
@@ -36,14 +36,15 @@ bool CMainWindow::Create(HINSTANCE hInstance)
     wcex.hCursor = ::LoadCursor(nullptr, IDC_ARROW);
     wcex.hbrBackground = ::GetSysColorBrush(COLOR_BTNFACE);
     wcex.lpszMenuName = MAKEINTRESOURCEW(IDI_ICON_10535006);
-    wcex.lpszClassName = m_class_name.c_str();
+    wcex.lpszClassName = m_swzClassName;
     wcex.hIconSm = ::LoadIcon(wcex.hInstance, MAKEINTRESOURCE(IDI_ICON_10535006));
 
     if (::RegisterClassExW(&wcex))
     {
         m_hInstance = hInstance;
+        if (pwzWindowName != nullptr)m_wstrDefaultWindowName = pwzWindowName;
 
-        m_hWnd = ::CreateWindowW(m_class_name.c_str(), m_window_name.c_str(), WS_OVERLAPPEDWINDOW & ~WS_MINIMIZEBOX & ~WS_MAXIMIZEBOX & ~WS_THICKFRAME,
+        m_hWnd = ::CreateWindowW(m_swzClassName, pwzWindowName, WS_OVERLAPPEDWINDOW & ~WS_MINIMIZEBOX & ~WS_MAXIMIZEBOX & ~WS_THICKFRAME,
             CW_USEDEFAULT, CW_USEDEFAULT, 200, 200, nullptr, nullptr, hInstance, this);
         if (m_hWnd != nullptr)
         {
@@ -124,9 +125,13 @@ LRESULT CMainWindow::HandleMessage(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM l
     case WM_PAINT:
         return OnPaint();
     case WM_ERASEBKGND:
-        return 0;
+        return 1;
+    case WM_KEYUP:
+        return OnKeyUp(wParam, lParam);
     case WM_COMMAND:
         return OnCommand(wParam);
+    case WM_TIMER:
+        return OnTimer(wParam);
     case WM_MOUSEWHEEL:
         return OnMouseWheel(wParam, lParam);
     case WM_LBUTTONDOWN:
@@ -135,6 +140,9 @@ LRESULT CMainWindow::HandleMessage(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM l
         return OnLButtonUp(wParam, lParam);
     case WM_MBUTTONUP:
         return OnMButtonUp(wParam, lParam);
+    case EventMessage::kAudioPlayer:
+        OnAudioPlayerEvent(static_cast<unsigned long>(lParam));
+        break;
     }
 
     return ::DefWindowProcW(hWnd, uMsg, wParam, lParam);
@@ -148,7 +156,7 @@ LRESULT CMainWindow::OnCreate(HWND hWnd)
 
     m_pScenePlayer = new CScenePlayer(m_hWnd);
 
-    m_pMediaPlayer = new CMediaPlayer(m_hWnd);
+    m_pMfAudioPlayer = new CMfMediaPlayer(m_hWnd, EventMessage::kAudioPlayer);
 
     return 0;
 }
@@ -163,10 +171,10 @@ LRESULT CMainWindow::OnDestroy()
         m_pScenePlayer = nullptr;
     }
 
-    if (m_pMediaPlayer != nullptr)
+    if (m_pMfAudioPlayer != nullptr)
     {
-        delete m_pMediaPlayer;
-        m_pMediaPlayer = nullptr;
+        delete m_pMfAudioPlayer;
+        m_pMfAudioPlayer = nullptr;
     }
     return 0;
 }
@@ -174,38 +182,56 @@ LRESULT CMainWindow::OnDestroy()
 LRESULT CMainWindow::OnClose()
 {
     ::DestroyWindow(m_hWnd);
-    ::UnregisterClassW(m_class_name.c_str(), m_hInstance);
+    ::UnregisterClassW(m_swzClassName, m_hInstance);
 
     return 0;
 }
 /*WM_PAINT*/
 LRESULT CMainWindow::OnPaint()
 {
-    if (!m_bNoLimit)
-    {
-        PAINTSTRUCT ps;
-        HDC hdc = ::BeginPaint(m_hWnd, &ps);
+    PAINTSTRUCT ps{};
+    ::BeginPaint(m_hWnd, &ps);
 
-        if (m_pScenePlayer != nullptr)
-        {
-            m_pScenePlayer->DisplayImage();
-        }
-
-        ::EndPaint(m_hWnd, &ps);
-    }
-    else
+    if (m_pScenePlayer != nullptr)
     {
-        if (m_pScenePlayer != nullptr)
+        m_pScenePlayer->DrawImage();
+        if (!m_textData.empty() && !m_bTextHidden)
         {
-            m_pScenePlayer->DisplayImage();
+            const adv::TextDatum& t = m_textData.at(m_nTextIndex);
+            std::wstring wstr = t.wstrText + L"\r\n " + std::to_wstring(m_nTextIndex + 1) + L"/" + std::to_wstring(m_textData.size());
+            m_pScenePlayer->DrawString(wstr.c_str(), static_cast<unsigned long>(wstr.size()));
         }
+        m_pScenePlayer->Display();
     }
+
+    ::EndPaint(m_hWnd, &ps);
 
     return 0;
 }
 /*WM_SIZE*/
 LRESULT CMainWindow::OnSize()
 {
+    return 0;
+}
+/*WM_KEYUP*/
+LRESULT CMainWindow::OnKeyUp(WPARAM wParam, LPARAM lParam)
+{
+    switch (wParam)
+    {
+    case VK_ESCAPE:
+        ::PostMessage(m_hWnd, WM_CLOSE, 0, 0);
+        break;
+    case VK_UP:
+        MenuOnForeFolder();
+        break;
+    case VK_DOWN:
+        MenuOnNextFolder();
+        break;
+    case 0x54:// T key
+        m_bTextHidden ^= true;
+        UpdateScreen();
+        break;
+    }
     return 0;
 }
 /*WM_COMMAND*/
@@ -218,35 +244,17 @@ LRESULT CMainWindow::OnCommand(WPARAM wParam)
         /*Menus*/
         switch (wmId)
         {
-        case Menu::kOpen:
+        case Menu::kOpenFolder:
             MenuOnOpen();
             break;
-        case Menu::kNextFolder:
-            MenuOnNextFolder();
-            break;
-        case Menu::kForeFolder:
-            MenuOnForeFolder();
-            break;
-        case Menu::kNextAudio:
-            MenuOnNextAudio();
-            break;
-        case Menu::kBack:
-            MenuOnBack();
-            break;
-        case Menu::kPlay:
-            MenuOnPlay();
-            break;
-        case Menu::kLoop:
+        case Menu::kAudioLoop:
             MenuOnLoop();
             break;
-        case Menu::kVolume:
+        case Menu::kAudioSetting:
             MenuOnVolume();
             break;
         case Menu::kPauseImage:
             MenuOnPauseImage();
-            break;
-        case Menu::kNolimit:
-            MenuOnNoLimit();
             break;
         }
     }
@@ -255,6 +263,19 @@ LRESULT CMainWindow::OnCommand(WPARAM wParam)
         /*Controls*/
     }
 
+    return 0;
+}
+/*WM_TIMER*/
+LRESULT CMainWindow::OnTimer(WPARAM wParam)
+{
+    switch (wParam)
+    {
+    case Timer::kText:
+        AutoTexting();
+        break;
+    default:
+        break;
+    }
     return 0;
 }
 /*WM_MOUSEWHEEL*/
@@ -275,16 +296,9 @@ LRESULT CMainWindow::OnMouseWheel(WPARAM wParam, LPARAM lParam)
         }
     }
 
-    if (wKey == MK_RBUTTON && m_pMediaPlayer != nullptr)
+    if (wKey == MK_RBUTTON && m_pMfAudioPlayer != nullptr)
     {
-        if (iScroll > 0)
-        {
-            m_pMediaPlayer->Next();
-        }
-        else
-        {
-            m_pMediaPlayer->Back();
-        }
+        ShiftText(iScroll > 0);
     }
 
     if (wKey == MK_LBUTTON && m_pScenePlayer != nullptr)
@@ -367,7 +381,7 @@ LRESULT CMainWindow::OnMButtonUp(WPARAM wParam, LPARAM lParam)
 /*操作欄作成*/
 void CMainWindow::InitialiseMenuBar()
 {
-    HMENU hManuFolder = nullptr;
+    HMENU hMenuFolder = nullptr;
     HMENU hMenuAudio = nullptr;
     HMENU kMenuImage = nullptr;
     HMENU hMenuBar = nullptr;
@@ -375,40 +389,28 @@ void CMainWindow::InitialiseMenuBar()
 
     if (m_hMenuBar != nullptr)return;
 
-    hManuFolder = ::CreateMenu();
-    if (hManuFolder == nullptr)goto failed;
+    hMenuFolder = ::CreateMenu();
+    if (hMenuFolder == nullptr)goto failed;
 
-    iRet = ::AppendMenuA(hManuFolder, MF_STRING, Menu::kOpen, "Open");
-    if (iRet == 0)goto failed;
-    iRet = ::AppendMenuA(hManuFolder, MF_STRING, Menu::kNextFolder, "Next");
-    if (iRet == 0)goto failed;
-    iRet = ::AppendMenuA(hManuFolder, MF_STRING, Menu::kForeFolder, "Back");
+    iRet = ::AppendMenuA(hMenuFolder, MF_STRING, Menu::kOpenFolder, "Open");
     if (iRet == 0)goto failed;
 
     hMenuAudio = ::CreateMenu();
     if (hMenuAudio == nullptr)goto failed;
 
-    iRet = ::AppendMenuA(hMenuAudio, MF_STRING, Menu::kNextAudio, "Next");
+    iRet = ::AppendMenuA(hMenuAudio, MF_STRING, Menu::kAudioLoop, "Loop");
     if (iRet == 0)goto failed;
-    iRet = ::AppendMenuA(hMenuAudio, MF_STRING, Menu::kBack, "Back");
-    if (iRet == 0)goto failed;
-    iRet = ::AppendMenuA(hMenuAudio, MF_STRING, Menu::kPlay, "Play");
-    if (iRet == 0)goto failed;
-    iRet = ::AppendMenuA(hMenuAudio, MF_STRING, Menu::kLoop, "Loop");
-    if (iRet == 0)goto failed;
-    iRet = ::AppendMenuA(hMenuAudio, MF_STRING, Menu::kVolume, "Setting");
+    iRet = ::AppendMenuA(hMenuAudio, MF_STRING, Menu::kAudioSetting, "Setting");
     if (iRet == 0)goto failed;
 
     kMenuImage = ::CreateMenu();
     iRet = ::AppendMenuA(kMenuImage, MF_STRING, Menu::kPauseImage, "Pause");
     if (iRet == 0)goto failed;
-    iRet = ::AppendMenuA(kMenuImage, MF_STRING, Menu::kNolimit, "No limit");
-    if (iRet == 0)goto failed;
 
     hMenuBar = ::CreateMenu();
     if (hMenuBar == nullptr) goto failed;
 
-    iRet = ::AppendMenuA(hMenuBar, MF_POPUP, reinterpret_cast<UINT_PTR>(hManuFolder), "Folder");
+    iRet = ::AppendMenuA(hMenuBar, MF_POPUP, reinterpret_cast<UINT_PTR>(hMenuFolder), "Folder");
     if (iRet == 0)goto failed;
     iRet = ::AppendMenuA(hMenuBar, MF_POPUP, reinterpret_cast<UINT_PTR>(hMenuAudio), "Audio");
     if (iRet == 0)goto failed;
@@ -427,9 +429,9 @@ failed:
     std::wstring wstrMessage = L"Failed to create menu; code: " + std::to_wstring(::GetLastError());
     ::MessageBoxW(nullptr, wstrMessage.c_str(), L"Error", MB_ICONERROR);
     /*SetMenu成功後はウィンドウ破棄時に破棄されるが、今は紐づけ前なのでここで破棄する。*/
-    if (hManuFolder != nullptr)
+    if (hMenuFolder != nullptr)
     {
-        ::DestroyMenu(hManuFolder);
+        ::DestroyMenu(hMenuFolder);
     }
     if (hMenuAudio != nullptr)
     {
@@ -448,10 +450,10 @@ failed:
 /*フォルダ選択*/
 void CMainWindow::MenuOnOpen()
 {
-    std::wstring wstrFolder = win_dialogue::SelectWorkFolder();
+    std::wstring wstrFolder = win_dialogue::SelectWorkFolder(nullptr);
     if (!wstrFolder.empty())
     {
-        SetPlayerFolder(wstrFolder.c_str());
+        SetupScenarioResources(wstrFolder.c_str());
         CreateFolderList(wstrFolder.c_str());
     }
 }
@@ -462,7 +464,7 @@ void CMainWindow::MenuOnNextFolder()
 
     ++m_nIndex;
     if (m_nIndex >= m_folders.size())m_nIndex = 0;
-    SetPlayerFolder(m_folders.at(m_nIndex).c_str());
+    SetupScenarioResources(m_folders.at(m_nIndex).c_str());
 }
 /*前フォルダに移動*/
 void CMainWindow::MenuOnForeFolder()
@@ -471,36 +473,12 @@ void CMainWindow::MenuOnForeFolder()
 
     --m_nIndex;
     if (m_nIndex >= m_folders.size())m_nIndex = m_folders.size() - 1;
-    SetPlayerFolder(m_folders.at(m_nIndex).c_str());
-}
-/*次音声再生*/
-void CMainWindow::MenuOnNextAudio()
-{
-    if (m_pMediaPlayer != nullptr)
-    {
-        m_pMediaPlayer->Next();
-    }
-}
-/*前音声再生*/
-void CMainWindow::MenuOnBack()
-{
-    if (m_pMediaPlayer != nullptr)
-    {
-        m_pMediaPlayer->Back();
-    }
-}
-/*現行音声再再生*/
-void CMainWindow::MenuOnPlay()
-{
-    if (m_pMediaPlayer != nullptr)
-    {
-        m_pMediaPlayer->Play();
-    }
+    SetupScenarioResources(m_folders.at(m_nIndex).c_str());
 }
 /*音声ループ設定変更*/
 void CMainWindow::MenuOnLoop()
 {
-    if (m_pMediaPlayer != nullptr)
+    if (m_pMfAudioPlayer != nullptr)
     {
         HMENU hMenuBar = ::GetMenu(m_hWnd);
         if (hMenuBar != nullptr)
@@ -508,8 +486,8 @@ void CMainWindow::MenuOnLoop()
             HMENU hMenu = ::GetSubMenu(hMenuBar, MenuBar::kAudio);
             if (hMenu != nullptr)
             {
-                BOOL iRet = m_pMediaPlayer->SwitchLoop();
-                ::CheckMenuItem(hMenu, Menu::kLoop, iRet == TRUE ? MF_CHECKED : MF_UNCHECKED);
+                BOOL iRet = m_pMfAudioPlayer->SwitchLoop();
+                ::CheckMenuItem(hMenu, Menu::kAudioLoop, iRet == TRUE ? MF_CHECKED : MF_UNCHECKED);
             }
         }
     }
@@ -517,13 +495,8 @@ void CMainWindow::MenuOnLoop()
 /*音量・再生速度変更*/
 void CMainWindow::MenuOnVolume()
 {
-    CMediaSettingDialogue* pMediaSettingDialogue = new CMediaSettingDialogue();
-    if (pMediaSettingDialogue != nullptr)
-    {
-        pMediaSettingDialogue->Open(m_hInstance, m_hWnd, m_pMediaPlayer, L"Audio Setting");
-
-        delete pMediaSettingDialogue;
-    }
+    CMediaSettingDialogue sMediaSettingDialogue;
+    sMediaSettingDialogue.Open(m_hInstance, m_hWnd, m_pMfAudioPlayer, L"Audio Setting");
 }
 /*一時停止*/
 void CMainWindow::MenuOnPauseImage()
@@ -542,23 +515,6 @@ void CMainWindow::MenuOnPauseImage()
         }
     }
 }
-/*再生速度制限有無*/
-void CMainWindow::MenuOnNoLimit()
-{
-    if (m_pScenePlayer != nullptr)
-    {
-        HMENU hMenuBar = ::GetMenu(m_hWnd);
-        if (hMenuBar != nullptr)
-        {
-            HMENU hMenu = ::GetSubMenu(hMenuBar, MenuBar::kImage);
-            if (hMenu != nullptr)
-            {
-                m_bNoLimit ^= true;
-                ::CheckMenuItem(hMenu, Menu::kNolimit, m_bNoLimit ? MF_CHECKED : MF_UNCHECKED);
-            }
-        }
-    }
-}
 /*標題変更*/
 void CMainWindow::ChangeWindowTitle(const wchar_t* pzTitle)
 {
@@ -570,7 +526,7 @@ void CMainWindow::ChangeWindowTitle(const wchar_t* pzTitle)
         wstr = pos == std::wstring::npos ? wstrTitle : wstrTitle.substr(pos + 1);
     }
 
-    ::SetWindowTextW(m_hWnd, wstr.empty() ? m_window_name.c_str() : wstr.c_str());
+    ::SetWindowTextW(m_hWnd, wstr.empty() ? m_wstrDefaultWindowName.c_str() : wstr.c_str());
 }
 /*表示形式変更*/
 void CMainWindow::SwitchWindowMode()
@@ -612,18 +568,16 @@ bool CMainWindow::CreateFolderList(const wchar_t* pwzFolderPath)
 
     return m_folders.size() > 0;
 }
-/*再生フォルダ設定*/
-void CMainWindow::SetPlayerFolder(const wchar_t* pwzFolderPath)
+/*再生素材ファイル一覧作成*/
+void CMainWindow::SetupScenarioResources(const wchar_t* pwzFolderPath)
 {
     if (pwzFolderPath == nullptr)return;
 
-    std::wstring wstrAudioFolderPath;
-    GetAudioFolderPath(pwzFolderPath, wstrAudioFolderPath);
-
-    SetPlayFiles(pwzFolderPath, wstrAudioFolderPath.c_str());
+    SetImageList(pwzFolderPath);
+    CreateMessageList(pwzFolderPath);
 }
-/*再生ファイル群設定*/
-void CMainWindow::SetPlayFiles(const wchar_t* pwzImageFolderPath, const wchar_t* pwzAudioFolderPath)
+/*連続画像一覧設定*/
+void CMainWindow::SetImageList(const wchar_t* pwzImageFolderPath)
 {
     bool bRet = false;
 
@@ -658,46 +612,94 @@ void CMainWindow::SetPlayFiles(const wchar_t* pwzImageFolderPath, const wchar_t*
         m_bPlayReady = m_pScenePlayer->SetFiles(imageFiles);
     }
 
-    std::vector<std::wstring> audioFiles;
-    bRet = win_filesystem::CreateFilePathList(pwzAudioFolderPath, L".mp3", audioFiles);
-    if (bRet && m_pMediaPlayer != nullptr)
-    {
-        m_pMediaPlayer->SetFiles(audioFiles);
-    }
-
     ChangeWindowTitle(m_bPlayReady ? pwzImageFolderPath : nullptr);
 }
-/*音声フォルダ経路探索*/
-bool CMainWindow::GetAudioFolderPath(const std::wstring& wstrImageFolderPath, std::wstring& wstrAudioFolderPath)
+/*文章一覧作成*/
+bool CMainWindow::CreateMessageList(const wchar_t* pwzFolderPath)
 {
-    size_t nPos = wstrImageFolderPath.find_last_of(L"\\/");
-    if (nPos == std::wstring::npos)return false;
-
-    std::wstring wstrCurrent = wstrImageFolderPath.substr(nPos + 1);
-    nPos = wstrCurrent.find(L"st_");
-    if (nPos == std::wstring::npos)return false;
-
-    std::wstring wstrCharacterId = wstrCurrent.substr(nPos + 3);
-
-    nPos = wstrImageFolderPath.find(L"adventure");
-    if (nPos == std::wstring::npos)return false;
-
-    std::wstring wstrVoiceFolder = wstrImageFolderPath.substr(0, nPos);
-    wstrVoiceFolder += L"audios\\voice\\adv";
-
-    std::vector<std::wstring> folders;
-    win_filesystem::CreateFilePathList(wstrVoiceFolder.c_str(), nullptr, folders);
-    auto IsContained = [&wstrCharacterId](const std::wstring& wstr)
-        -> bool
+    m_textData.clear();
+    m_nTextIndex = 0;
+    sngk::SearchAndLoadScenarioFile(pwzFolderPath, m_textData);
+    if (m_textData.empty())
+    {
+        std::wstring wstrAudioFolderPath;
+        sngk::DeriveAudioFolderPathFromStillFolderPath(pwzFolderPath, wstrAudioFolderPath);
+        if (!wstrAudioFolderPath.empty())
         {
-            return wcsstr(wstr.c_str(), wstrCharacterId.c_str()) != nullptr;
-        };
+            std::vector<std::wstring> audioFiles;
+            win_filesystem::CreateFilePathList(wstrAudioFolderPath.c_str(), L".mp3", audioFiles);
+            for (const std::wstring& audioFile : audioFiles)
+            {
+                m_textData.emplace_back(adv::TextDatum{ L"", audioFile });
+            }
+        }
+    }
 
-    auto iter = std::find_if(folders.begin(), folders.end(), IsContained);
-    if (iter == folders.end())return false;
-    size_t nIndex = std::distance(folders.begin(), iter);
+    UpdateText();
 
-    wstrAudioFolderPath = folders.at(nIndex);
+    return !m_textData.empty();
+}
+/*再描画要求*/
+void CMainWindow::UpdateScreen()
+{
+    ::InvalidateRect(m_hWnd, nullptr, FALSE);
+}
+/*文章送り・戻し*/
+void CMainWindow::ShiftText(bool bForward)
+{
+    if (bForward)
+    {
+        ++m_nTextIndex;
+        if (m_nTextIndex >= m_textData.size())m_nTextIndex = 0;
+    }
+    else
+    {
+        --m_nTextIndex;
+        if (m_nTextIndex >= m_textData.size())m_nTextIndex = m_textData.size() - 1;
+    }
+    UpdateText();
+}
+/*文章更新*/
+void CMainWindow::UpdateText()
+{
+    if (!m_textData.empty())
+    {
+        const adv::TextDatum& t = m_textData.at(m_nTextIndex);
+        if (!t.wstrVoicePath.empty())
+        {
+            if (m_pMfAudioPlayer != nullptr)
+            {
+                m_pMfAudioPlayer->Play(t.wstrVoicePath.c_str());
+            }
 
-    return true;
+            ::KillTimer(m_hWnd, Timer::kText);
+        }
+        else
+        {
+            constexpr unsigned int kTimerInterval = 2000;
+            ::SetTimer(m_hWnd, Timer::kText, kTimerInterval, nullptr);
+        }
+    }
+
+    UpdateScreen();
+}
+/*IMFMediaEngineNotify::EventNotify*/
+void CMainWindow::OnAudioPlayerEvent(unsigned long ulEvent)
+{
+    switch (ulEvent)
+    {
+    case MF_MEDIA_ENGINE_EVENT_LOADEDMETADATA:
+
+        break;
+    case MF_MEDIA_ENGINE_EVENT_ENDED:
+        AutoTexting();
+        break;
+    default:
+        break;
+    }
+}
+/*自動送り*/
+void CMainWindow::AutoTexting()
+{
+    if (m_nTextIndex < m_textData.size() - 1)ShiftText(true);
 }
