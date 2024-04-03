@@ -5,10 +5,11 @@
 #include <Windows.h>
 #include <CommCtrl.h>
 
-#include "media_setting_dialogue.h"
-#include "resource.h"
+#include <string>
 
-#include "media_player.h"
+#include "media_setting_dialogue.h"
+#include "mf_media_player.h"
+#include "Resource.h"
 
 CMediaSettingDialogue::CMediaSettingDialogue()
 {
@@ -34,12 +35,12 @@ bool CMediaSettingDialogue::Open(HINSTANCE hInstance, HWND hWnd, void* pMediaPla
     wcex.cbClsExtra = 0;
     wcex.cbWndExtra = 0;
     wcex.hInstance = hInstance;
-    wcex.hIcon = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_ICON_10535006));
-    wcex.hCursor = LoadCursor(nullptr, IDC_ARROW);
-    wcex.hbrBackground = GetSysColorBrush(COLOR_BTNFACE);
+    wcex.hIcon = ::LoadIcon(hInstance, MAKEINTRESOURCE(IDI_ICON_10535006));
+    wcex.hCursor = ::LoadCursor(nullptr, IDC_ARROW);
+    wcex.hbrBackground = ::GetSysColorBrush(COLOR_BTNFACE);
     wcex.lpszMenuName = MAKEINTRESOURCEW(IDI_ICON_10535006);
-    wcex.lpszClassName = m_class_name.c_str();
-    wcex.hIconSm = LoadIcon(wcex.hInstance, MAKEINTRESOURCE(IDI_ICON_10535006));
+    wcex.lpszClassName = m_swzClassName;
+    wcex.hIconSm = ::LoadIcon(wcex.hInstance, MAKEINTRESOURCE(IDI_ICON_10535006));
 
     if (::RegisterClassExW(&wcex))
     {
@@ -47,11 +48,10 @@ bool CMediaSettingDialogue::Open(HINSTANCE hInstance, HWND hWnd, void* pMediaPla
         m_hParentWnd = hWnd;
         m_pMediaPlayer = pMediaPlayer;
 
-        m_hWnd = ::CreateWindowW(m_class_name.c_str(), m_window_name.c_str(), WS_OVERLAPPEDWINDOW & ~ WS_MINIMIZEBOX & ~ WS_MAXIMIZEBOX & ~WS_THICKFRAME,
+        m_hWnd = ::CreateWindowW(m_swzClassName, pwzWindowName, WS_OVERLAPPEDWINDOW & ~ WS_MINIMIZEBOX & ~ WS_MAXIMIZEBOX & ~WS_THICKFRAME,
             CW_USEDEFAULT, CW_USEDEFAULT, 100, 200, hWnd, nullptr, hInstance, this);
         if (m_hWnd != nullptr)
         {
-            ::SetWindowTextW(m_hWnd, pwzWindowName);
             MessageLoop();
             return true;
         }
@@ -170,7 +170,7 @@ LRESULT CMediaSettingDialogue::OnClose()
     ::BringWindowToTop(m_hParentWnd);
 
     ::DestroyWindow(m_hWnd);
-    ::UnregisterClassW(m_class_name.c_str(), m_hInstance);
+    ::UnregisterClassW(m_swzClassName, m_hInstance);
 
     return 0;
 }
@@ -220,7 +220,7 @@ LRESULT CMediaSettingDialogue::OnSize()
 /*WM_VSCROLL*/
 LRESULT CMediaSettingDialogue::OnVScroll(WPARAM wParam, LPARAM lParam)
 {
-    CMediaPlayer* pPlayer = static_cast<CMediaPlayer*>(m_pMediaPlayer);
+    CMfMediaPlayer* pPlayer = static_cast<CMfMediaPlayer*>(m_pMediaPlayer);
     if (pPlayer != nullptr)
     {
         HANDLE hScroll = reinterpret_cast<HANDLE>(lParam);
@@ -293,7 +293,7 @@ void CMediaSettingDialogue::CreateSliders()
 /*現在値取得・表示*/
 void CMediaSettingDialogue::SetSliderPosition()
 {
-    CMediaPlayer* pPlayer = static_cast<CMediaPlayer*>(m_pMediaPlayer);
+    CMfMediaPlayer* pPlayer = static_cast<CMfMediaPlayer*>(m_pMediaPlayer);
     if (pPlayer != nullptr)
     {
         if (m_hVolumeSlider != nullptr)
@@ -309,7 +309,7 @@ void CMediaSettingDialogue::SetSliderPosition()
         }
     }
 }
-/*自身の窓枠寸法取得*/
+/*描画領域の大きさ取得*/
 void CMediaSettingDialogue::GetClientAreaSize(long* width, long* height)
 {
     RECT rect;
