@@ -134,9 +134,7 @@
     <ClInclude Include="mf_media_player.h" />
     <ClInclude Include="Resource.h" />
     <ClInclude Include="scene_player.h" />
-    <ClInclude Include="SengokuKoihimePlayer.h" />
     <ClInclude Include="sngk.h" />
-    <ClInclude Include="targetver.h" />
     <ClInclude Include="win_dialogue.h" />
     <ClInclude Include="win_filesystem.h" />
     <ClInclude Include="win_text.h" />
@@ -146,7 +144,7 @@
     <ClCompile Include="media_setting_dialogue.cpp" />
     <ClCompile Include="mf_media_player.cpp" />
     <ClCompile Include="scene_player.cpp" />
-    <ClCompile Include="SengokuKoihimePlayer.cpp" />
+    <ClCompile Include="main.cpp" />
     <ClCompile Include="sngk.cpp" />
     <ClCompile Include="win_dialogue.cpp" />
     <ClCompile Include="win_filesystem.cpp" />
