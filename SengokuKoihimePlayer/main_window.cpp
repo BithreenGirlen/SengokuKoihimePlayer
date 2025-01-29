@@ -156,7 +156,8 @@ LRESULT CMainWindow::OnCreate(HWND hWnd)
 
     m_pScenePlayer = new CScenePlayer(m_hWnd);
 
-    m_pMfAudioPlayer = new CMfMediaPlayer(m_hWnd, EventMessage::kAudioPlayer);
+    m_pMfAudioPlayer = new CMfMediaPlayer();
+    m_pMfAudioPlayer->SetPlaybackWindow(m_hWnd, EventMessage::kAudioPlayer);
 
     return 0;
 }
@@ -564,7 +565,7 @@ bool CMainWindow::CreateFolderList(const wchar_t* pwzFolderPath)
 
     m_folders.clear();
     m_nIndex = 0;
-    win_filesystem::GetFolderListAndIndex(pwzFolderPath, m_folders, &m_nIndex);
+    win_filesystem::GetFilePathListAndIndex(pwzFolderPath, nullptr, m_folders, &m_nIndex);
 
     return m_folders.size() > 0;
 }
