@@ -44,8 +44,12 @@ bool CMainWindow::Create(HINSTANCE hInstance, const wchar_t* pwzWindowName)
         m_hInstance = hInstance;
         if (pwzWindowName != nullptr)m_wstrDefaultWindowName = pwzWindowName;
 
+        UINT uiDpi = ::GetDpiForSystem();
+        int iWindowWidth = ::MulDiv(200, uiDpi, USER_DEFAULT_SCREEN_DPI);
+        int iWindowHeight = ::MulDiv(200, uiDpi, USER_DEFAULT_SCREEN_DPI);
+
         m_hWnd = ::CreateWindowW(m_swzClassName, pwzWindowName, WS_OVERLAPPEDWINDOW & ~WS_MINIMIZEBOX & ~WS_MAXIMIZEBOX & ~WS_THICKFRAME,
-            CW_USEDEFAULT, CW_USEDEFAULT, 200, 200, nullptr, nullptr, hInstance, this);
+            CW_USEDEFAULT, CW_USEDEFAULT, iWindowWidth, iWindowHeight, nullptr, nullptr, hInstance, this);
         if (m_hWnd != nullptr)
         {
             return true;
@@ -497,7 +501,7 @@ void CMainWindow::MenuOnLoop()
 void CMainWindow::MenuOnVolume()
 {
     CMediaSettingDialogue sMediaSettingDialogue;
-    sMediaSettingDialogue.Open(m_hInstance, m_hWnd, m_pMfAudioPlayer, L"Audio Setting");
+    sMediaSettingDialogue.Open(m_hInstance, m_hWnd, m_pMfAudioPlayer, L"Audio");
 }
 /*一時停止*/
 void CMainWindow::MenuOnPauseImage()
