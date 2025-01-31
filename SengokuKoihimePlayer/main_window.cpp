@@ -679,22 +679,6 @@ bool CMainWindow::CreateMessageList(const wchar_t* pwzFolderPath)
 	m_nTextIndex = 0;
 	sngk::SearchAndLoadScenarioFile(pwzFolderPath, m_textData);
 
-	/*台本なし・読み取り失敗*/
-	if (m_textData.empty())
-	{
-		std::wstring wstrAudioFolderPath;
-		sngk::DeriveAudioFolderPathFromStillFolderPath(pwzFolderPath, wstrAudioFolderPath);
-		if (!wstrAudioFolderPath.empty())
-		{
-			std::vector<std::wstring> audioFiles;
-			win_filesystem::CreateFilePathList(wstrAudioFolderPath.c_str(), L".mp3", audioFiles);
-			for (const std::wstring& audioFile : audioFiles)
-			{
-				m_textData.emplace_back(adv::TextDatum{ L"", audioFile });
-			}
-		}
-	}
-
 	return !m_textData.empty();
 }
 /*再描画要求*/
