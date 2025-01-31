@@ -4,10 +4,14 @@
 #include <Windows.h>
 
 #include <string>
+#include <vector>
 
-#include "scene_player.h"
+#include "d2_image_drawer.h"
+#include "d2_text_writer.h"
 #include "mf_media_player.h"
+#include "view_manager.h"
 #include "adv.h"
+#include "sngk_image_transferor.h"
 
 class CMainWindow
 {
@@ -31,7 +35,7 @@ private:
 	LRESULT OnPaint();
 	LRESULT OnSize();
 	LRESULT OnKeyUp(WPARAM wParam, LPARAM lParam);
-	LRESULT OnCommand(WPARAM wParam);
+	LRESULT OnCommand(WPARAM wParam, LPARAM lParam);
 	LRESULT OnTimer(WPARAM wParam);
 	LRESULT OnMouseWheel(WPARAM wParam, LPARAM lParam);
 	LRESULT OnLButtonDown(WPARAM wParam, LPARAM lParam);
@@ -58,18 +62,17 @@ private:
 	};
 
 	POINT m_CursorPos{};
-	bool m_bSpeedSet = false;
+	bool m_bLeftDowned = false;
+	bool m_bLeftCombinated = false;
 
 	HMENU m_hMenuBar = nullptr;
-	bool m_bHideBar = false;
+
+	bool m_bBarHidden = false;
 	bool m_bPlayReady = false;
 	bool m_bTextHidden = false;
 
 	std::vector<std::wstring> m_folders;
-	size_t m_nIndex = 0;
-
-	std::vector<adv::TextDatum> m_textData;
-	size_t m_nTextIndex = 0;
+	size_t m_nFolderIndex = 0;
 
 	void InitialiseMenuBar();
 
@@ -92,9 +95,20 @@ private:
 
 	void UpdateScreen();
 
-	CScenePlayer* m_pScenePlayer = nullptr;
+	CD2ImageDrawer* m_pD2ImageDrawer = nullptr;
+	CD2TextWriter* m_pD2TextWriter = nullptr;
+	CMfMediaPlayer* m_pAudioPlayer = nullptr;
+	CViewManager* m_pViewManager = nullptr;
+	CSngkImageTransferor* m_pSngkImageTransferor = nullptr;
 
-	CMfMediaPlayer* m_pMfAudioPlayer = nullptr;
+	std::vector<adv::TextDatum> m_textData;
+	size_t m_nTextIndex = 0;
+
+	void ShiftPaintData(bool bForward);
+	void UpdatePaintData();
+
+	std::wstring FormatCurrentText();
+
 	void ShiftText(bool bForward);
 	void UpdateText();
 	void OnAudioPlayerEvent(unsigned long ulEvent);
