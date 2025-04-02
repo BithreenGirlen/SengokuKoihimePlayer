@@ -6,16 +6,15 @@
 #include "win_filesystem.h"
 #include "win_image.h"
 
-CSngkImageTransferor::CSngkImageTransferor(ID2D1DeviceContext* pD2d1DeviceContext, HWND hWnd)
-	: m_pStoredD2d1DeviceContext(pD2d1DeviceContext), m_hRenderWindow(hWnd)
+CSngkImageTransferor::CSngkImageTransferor(ID2D1DeviceContext* pD2d1DeviceContext)
+	: m_pStoredD2d1DeviceContext(pD2d1DeviceContext)
 {
-	m_winTimer.SetCallback(&CSngkImageTransferor::TimerCallback, this);
-	m_winTimer.SetDerfaultInterval(Constants::kInterval);
+
 }
 
 CSngkImageTransferor::~CSngkImageTransferor()
 {
-	m_winTimer.End();
+
 }
 
 bool CSngkImageTransferor::SetImages(std::vector<std::wstring>& imageFilePaths)
@@ -140,14 +139,7 @@ bool CSngkImageTransferor::SetImages(std::vector<std::wstring>& imageFilePaths)
 	if (!anim2Bitmaps.empty())m_images.push_back(std::move(anim2Bitmaps));
 	if (!finBitmaps.empty())m_images.push_back(std::move(finBitmaps));
 
-	if (!m_images.empty())
-	{
-		m_winTimer.Start();
-	}
-	else
-	{
-		m_winTimer.End();
-	}
+	m_animationClock.Restart();
 
 	return !m_images.empty();
 }
@@ -190,37 +182,40 @@ ID2D1Bitmap* CSngkImageTransferor::GetCurrentImage()
 	ID2D1Bitmap* p = m_images[m_nImageIndex][m_nAnimationIndex];
 	if (!m_bPaused)
 	{
-		ShiftAnimation();
+		float fElapsed = m_animationClock.GetElapsedTime();
+		if (::isgreaterequal(fElapsed, 1000 / static_cast<float>(m_iFps)))
+		{
+			ShiftAnimation();
+			m_animationClock.Restart();
+		}
 	}
 
 	return p;
 }
 /*停止切り替え*/
-bool CSngkImageTransferor::SwitchPause()
+bool CSngkImageTransferor::TogglePause()
 {
+	m_animationClock.Restart();
+
 	m_bPaused ^= true;
 	return m_bPaused;
 }
 /*コマ送り加速・減速*/
-void CSngkImageTransferor::RescaleTimer(bool bFaster)
+void CSngkImageTransferor::UpdateAnimationInterval(bool bFaster)
 {
-	long long llInterval = m_winTimer.GetInterval();
-
 	if (bFaster)
 	{
-		if (--llInterval <= 1)llInterval = 1;
+		++m_iFps;
 	}
 	else
 	{
-		++llInterval;
+		if (--m_iFps <= 1)m_iFps = 1;
 	}
-
-	m_winTimer.SetInterval(llInterval);
 }
 /*速度初期化*/
-void CSngkImageTransferor::ResetSpeed()
+void CSngkImageTransferor::ResetAnimationInterval()
 {
-	m_winTimer.ResetInterval();
+	m_iFps = Constants::kDefaultFps;
 }
 /*消去*/
 void CSngkImageTransferor::ClearImages()
@@ -229,7 +224,7 @@ void CSngkImageTransferor::ClearImages()
 	m_nImageIndex = 0;
 	m_nAnimationIndex = 0;
 
-	ResetSpeed();
+	ResetAnimationInterval();
 }
 /*画像流し込み*/
 void CSngkImageTransferor::ImportImage(const SPortion& sPortion, UINT uiStride, std::vector<CComPtr<ID2D1Bitmap>>& bitmaps)
@@ -254,26 +249,11 @@ void CSngkImageTransferor::ImportImage(const SPortion& sPortion, UINT uiStride, 
 /*コマ送り*/
 void CSngkImageTransferor::ShiftAnimation()
 {
-	if (m_nImageIndex >= m_images.size() || m_nAnimationIndex >= m_images[m_nImageIndex].size())
+	if (m_nImageIndex < m_images.size())
 	{
-		return;
-	}
-
-	if (++m_nAnimationIndex >= m_images[m_nImageIndex].size())
-	{
-		m_nAnimationIndex = 0;
-	}
-}
-/*再描画要求*/
-void CSngkImageTransferor::TimerCallback(void* pData)
-{
-	auto pThis = static_cast<CSngkImageTransferor*>(pData);
-	if (pThis != nullptr)
-	{
-		HWND hWnd = pThis->m_hRenderWindow;
-		if (::IsWindow(hWnd))
+		if (++m_nAnimationIndex >= m_images[m_nImageIndex].size())
 		{
-			::InvalidateRect(hWnd, nullptr, FALSE);
+			m_nAnimationIndex = 0;
 		}
 	}
 }

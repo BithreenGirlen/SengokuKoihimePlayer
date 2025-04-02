@@ -9,12 +9,12 @@
 #include <vector>
 #include <string>
 
-#include "win_timer.h"
+#include "win_clock.h"
 
 class CSngkImageTransferor
 {
 public:
-	CSngkImageTransferor(ID2D1DeviceContext* pD2d1DeviceContext, HWND hWnd);
+	CSngkImageTransferor(ID2D1DeviceContext* pD2d1DeviceContext);
 	~CSngkImageTransferor();
 
 	bool SetImages(std::vector<std::wstring>& imageFilePaths);
@@ -23,13 +23,13 @@ public:
 	void ShiftImage();
 	ID2D1Bitmap* GetCurrentImage();
 
-	bool SwitchPause();
-	void RescaleTimer(bool bFaster);
-	void ResetSpeed();
+	bool TogglePause();
+	void UpdateAnimationInterval(bool bFaster);
+	void ResetAnimationInterval();
 private:
 	enum Constants
 	{
-		kInterval = 16,
+		kDefaultFps = 60,
 		kBaseWidth = 1280, kBaseHeight = 720,
 		kAnimationWdith = 2048, kAnimationHeight = 1728
 	};
@@ -42,7 +42,6 @@ private:
 	};
 
 	ID2D1DeviceContext* m_pStoredD2d1DeviceContext = nullptr;
-	HWND m_hRenderWindow = nullptr;
 
 	std::vector<std::vector<CComPtr<ID2D1Bitmap>>> m_images;
 	size_t m_nImageIndex = 0;
@@ -55,9 +54,8 @@ private:
 
 	void ShiftAnimation();
 
-	CWinTimer m_winTimer;
-
-	static void TimerCallback(void* pData);
+	CWinClock m_animationClock;
+	int m_iFps = Constants::kDefaultFps;
 };
 
 #endif // !SNGK_IMAGE_TRANSFEROR_H_

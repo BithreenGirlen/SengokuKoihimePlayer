@@ -139,11 +139,11 @@
     <ClInclude Include="sngk_image_transferor.h" />
     <ClInclude Include="text_utility.h" />
     <ClInclude Include="view_manager.h" />
+    <ClInclude Include="win_clock.h" />
     <ClInclude Include="win_dialogue.h" />
     <ClInclude Include="win_filesystem.h" />
     <ClInclude Include="win_image.h" />
     <ClInclude Include="win_text.h" />
-    <ClInclude Include="win_timer.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="d2_image_drawer.cpp" />
@@ -155,11 +155,11 @@
     <ClCompile Include="sngk.cpp" />
     <ClCompile Include="sngk_image_transferor.cpp" />
     <ClCompile Include="view_manager.cpp" />
+    <ClCompile Include="win_clock.cpp" />
     <ClCompile Include="win_dialogue.cpp" />
     <ClCompile Include="win_filesystem.cpp" />
     <ClCompile Include="win_image.cpp" />
     <ClCompile Include="win_text.cpp" />
-    <ClCompile Include="win_timer.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="SengokuKoihimePlayer.rc" />

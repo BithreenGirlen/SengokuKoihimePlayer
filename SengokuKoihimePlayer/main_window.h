@@ -37,6 +37,7 @@ private:
 	LRESULT OnKeyUp(WPARAM wParam, LPARAM lParam);
 	LRESULT OnCommand(WPARAM wParam, LPARAM lParam);
 	LRESULT OnTimer(WPARAM wParam);
+	LRESULT OnMouseMove(WPARAM wParam, LPARAM lParam);
 	LRESULT OnMouseWheel(WPARAM wParam, LPARAM lParam);
 	LRESULT OnLButtonDown(WPARAM wParam, LPARAM lParam);
 	LRESULT OnLButtonUp(WPARAM wParam, LPARAM lParam);
@@ -52,17 +53,10 @@ private:
 	{
 		kFolder, kAudio, kImage
 	};
-	enum EventMessage
-	{
-		kAudioPlayer = WM_USER + 1
-	};
-	enum Timer
-	{
-		kText = 1,
-	};
 
-	POINT m_CursorPos{};
+	POINT m_cursorPos{};
 	bool m_bLeftDowned = false;
+	bool m_bLeftDragged = false;
 	bool m_bLeftCombinated = false;
 
 	HMENU m_hMenuBar = nullptr;
@@ -103,15 +97,15 @@ private:
 
 	std::vector<adv::TextDatum> m_textData;
 	size_t m_nTextIndex = 0;
+	CWinClock m_textClock;
 
 	void ShiftPaintData(bool bForward);
-	void UpdatePaintData();
 
 	std::wstring FormatCurrentText();
 
+	void CheckTextClock();
 	void ShiftText(bool bForward);
 	void UpdateText();
-	void OnAudioPlayerEvent(unsigned long ulEvent);
 	void AutoTexting();
 };
 

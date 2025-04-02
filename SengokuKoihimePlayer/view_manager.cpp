@@ -71,12 +71,10 @@ void CViewManager::WorkOutDefaultScale()
 		if (uiMonitorWidth > uiMonitorHeight)
 		{
 			m_fDefaultScale = static_cast<float>(uiMonitorHeight) / m_uiBaseHeight;
-			m_fThresholdScale = static_cast<float>(uiMonitorWidth) / m_uiBaseWidth;
 		}
 		else
 		{
 			m_fDefaultScale = static_cast<float>(uiMonitorWidth) / m_uiBaseWidth;
-			m_fThresholdScale = static_cast<float>(uiMonitorHeight) / m_uiBaseHeight;
 		}
 		m_fScale = m_fDefaultScale;
 	}

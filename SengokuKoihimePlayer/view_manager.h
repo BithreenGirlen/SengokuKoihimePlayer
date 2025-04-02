@@ -26,7 +26,6 @@ private:
     unsigned int m_uiBaseWidth = Constants::kBaseWidth;
     unsigned int m_uiBaseHeight = Constants::kBaseHeight;
     float m_fDefaultScale = 1.f;
-    float m_fThresholdScale = 1.f;
 
     float m_fScale = 1.f;
     float m_fXOffset = 0;
