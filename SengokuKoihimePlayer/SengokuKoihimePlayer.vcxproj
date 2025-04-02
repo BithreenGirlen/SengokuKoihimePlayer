@@ -136,7 +136,7 @@
     <ClInclude Include="mf_media_player.h" />
     <ClInclude Include="Resource.h" />
     <ClInclude Include="sngk.h" />
-    <ClInclude Include="sngk_image_transferor.h" />
+    <ClInclude Include="sngk_scene_crafter.h" />
     <ClInclude Include="text_utility.h" />
     <ClInclude Include="view_manager.h" />
     <ClInclude Include="win_clock.h" />
@@ -153,7 +153,7 @@
     <ClCompile Include="mf_media_player.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="sngk.cpp" />
-    <ClCompile Include="sngk_image_transferor.cpp" />
+    <ClCompile Include="sngk_scene_crafter.cpp" />
     <ClCompile Include="view_manager.cpp" />
     <ClCompile Include="win_clock.cpp" />
     <ClCompile Include="win_dialogue.cpp" />

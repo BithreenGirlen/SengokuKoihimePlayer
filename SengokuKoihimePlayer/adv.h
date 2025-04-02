@@ -10,5 +10,11 @@ namespace adv
 		std::wstring wstrText;
 		std::wstring wstrVoicePath;
 	};
+
+	struct SceneDatum
+	{
+		size_t nTextIndex = 0;
+		size_t nImageIndex = 0;
+	};
 }
 #endif // !ADV_H_

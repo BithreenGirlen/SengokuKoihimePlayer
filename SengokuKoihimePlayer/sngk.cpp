@@ -57,41 +57,32 @@ namespace sngk
 		std::wstring wstrBaseFolder = wstrStillFolderPath.substr(0, nPos);
 
 		std::wstring wstrVoiceFolder = wstrBaseFolder + L"audios\\voice\\adv";
-		std::wstring wstrFolderPath = FindPathContainingCharacterId(wstrVoiceFolder, wstrCharacterId, nullptr);
-		if (wstrFolderPath.empty())return false;
+		resourcePath.wstrVoiceFolder = FindPathContainingCharacterId(wstrVoiceFolder, wstrCharacterId, nullptr);
+		if (resourcePath.wstrVoiceFolder.empty())return false;
 
-		resourcePath.wstrVoiceFolder = wstrFolderPath;
-
-		std::wstring wstrJsonFolder = wstrBaseFolder + L"adventure\\json";
-		std::wstring wstrFilePath = FindPathContainingCharacterId(wstrJsonFolder, wstrCharacterId, L".json");
-		if (wstrFilePath.empty())return false;
-
-		resourcePath.wstrScenarioFile = wstrFilePath;
+		std::wstring wstrScenarioFolder = wstrBaseFolder + L"adventure\\json";
+		resourcePath.wstrScenarioFile = FindPathContainingCharacterId(wstrScenarioFolder, wstrCharacterId, L".json");
+		if (resourcePath.wstrScenarioFile.empty())return false;
 
 		return true;
 	}
 
-	enum TokenDataType
+	enum class ETokenDataType
 	{
-		kText = 1,
+		kUnknown = -1,
+		kText,
 		kVoice,
+		kAnimation
 	};
 
-	struct MessageData
+	struct STokenDatum
 	{
-		std::wstring wstrName;
-		std::wstring wstrText;
-	};
-
-	struct TokenDatum
-	{
-		int iType = 0;
-		MessageData messageData;
-		std::string strVoicePath;
+		ETokenDataType type = ETokenDataType::kUnknown;
+		std::string strData;
 	};
 
 	/*脚本ファイル解析*/
-	static void ParseScenarioFile(const std::string& strScenarioFile, std::vector<TokenDatum>& tokenData, std::string& strError)
+	static void ParseScenarioFile(const std::string& strScenarioFile, std::vector<STokenDatum>& tokenData, std::string& strError)
 	{
 		/*音声IDとファイル名が同名なのでloadDataからの写像は作成しない。*/
 
@@ -101,49 +92,52 @@ namespace sngk
 
 			const nlohmann::json& jData = nlJson.at(5).at(0).at(2);
 
-			const nlohmann::json& jsonTokenData = jData.at("tokenData");
-			for(const auto &jsonTokenDatum : jsonTokenData)
+			const nlohmann::json& jTokenData = jData.at("tokenData");
+			for(const auto &jTokenDatum : jTokenData)
 			{
-				TokenDatum tokenDatum;
-				if (jsonTokenDatum.contains("type"))
+				if (!jTokenDatum.contains("type"))continue;
+
+				STokenDatum tokenDatum;
+				int iType = jTokenDatum["type"];
+				if (iType == 0)
 				{
-					/*文章*/
-					int iType = jsonTokenDatum["type"];
-					if (iType == 0)
+					if (jTokenDatum.contains("message"))
 					{
-						if (jsonTokenDatum.contains("message"))
+						/*文章*/
+						tokenDatum.type = ETokenDataType::kText;
+						/*発言者*/
+						if (jTokenDatum.contains("name"))
 						{
-							/*発言者*/
-							if (jsonTokenDatum.contains("name"))
-							{
-								std::string str = std::string(jsonTokenDatum["name"]);
-								tokenDatum.messageData.wstrName = win_text::WidenUtf8(str);
-							}
-							std::string str = std::string(jsonTokenDatum["message"]);
-
-							tokenDatum.iType = TokenDataType::kText;
-							tokenDatum.messageData.wstrText = win_text::WidenUtf8(str);
-
-							tokenData.push_back(std::move(tokenDatum));
+							tokenDatum.strData = jTokenDatum["name"].get<std::string>();
+							tokenDatum.strData += ":\n";
+						}
+						tokenDatum.strData += jTokenDatum["message"].get<std::string>();
+					}
+				}
+				else if (iType == 1)
+				{
+					if (jTokenDatum.contains("params") && jTokenDatum.contains("commandIdx"))
+					{
+						const int commandId = jTokenDatum["commandIdx"];
+						const nlohmann::json& jParams = jTokenDatum["params"];
+						if (commandId == 12)
+						{
+							/*音声指定*/
+							tokenDatum.type = ETokenDataType::kVoice;
+							tokenDatum.strData = jParams.at(3).get<std::string>();
+						}
+						else if (commandId == 42)
+						{
+							/*動作名指定*/
+							tokenDatum.type = ETokenDataType::kAnimation;
+							tokenDatum.strData = jParams.at(1).get<std::string>();
 						}
 					}
-					else if (iType == 1)
-					{
-						if (jsonTokenDatum.contains("params"))
-						{
-							const nlohmann::json& jParams = jsonTokenDatum["params"];
-							if (jParams.size() > 3)
-							{
-								/*音声指定*/
-								if (jParams[3].is_string() && jParams[2] == "vo")
-								{
-									tokenDatum.iType = TokenDataType::kVoice;
-									tokenDatum.strVoicePath = std::string(jParams[3]);
-									tokenData.push_back(std::move(tokenDatum));
-								}
-							}
-						}
-					}
+				}
+
+				if (tokenDatum.type != ETokenDataType::kUnknown)
+				{
+					tokenData.push_back(std::move(tokenDatum));
 				}
 			}
 		}
@@ -154,7 +148,7 @@ namespace sngk
 	}
 }
 /*脚本ファイル探索と取り込み*/
-bool sngk::SearchAndLoadScenarioFile(const std::wstring& wstrStillFolderPath, std::vector<adv::TextDatum>& textData)
+bool sngk::SearchAndLoadScenarioFile(const std::wstring& wstrStillFolderPath, std::vector<adv::TextDatum>& textData, std::vector<std::wstring>& animationNames, std::vector<adv::SceneDatum>& sceneData)
 {
 	SResourcePath resourcePath;
 	bool bRet = DeriveResourcePathFromStillFolderPath(wstrStillFolderPath, resourcePath);
@@ -163,7 +157,7 @@ bool sngk::SearchAndLoadScenarioFile(const std::wstring& wstrStillFolderPath, st
 	std::string strScenarioFile = win_filesystem::LoadFileAsString(resourcePath.wstrScenarioFile.c_str());
 	if (strScenarioFile.empty())return false;
 
-	std::vector<TokenDatum> tokenData;
+	std::vector<STokenDatum> tokenData;
 	std::string strError;
 	ParseScenarioFile(strScenarioFile, tokenData, strError);
 
@@ -173,43 +167,46 @@ bool sngk::SearchAndLoadScenarioFile(const std::wstring& wstrStillFolderPath, st
 		return false;
 	}
 
-	std::wstring wstrVoicePath;
+	std::wstring voicePathBuffer;
+	adv::SceneDatum sceneDatumBuffer;
+
 	for(const auto& tokenDatum : tokenData)
 	{
-		switch (tokenDatum.iType)
-		{
-		case TokenDataType::kText:
+		if (tokenDatum.type == ETokenDataType::kText)
 		{
 			adv::TextDatum textDatum;
 			textDatum.wstrText.reserve(128);
-			if (!tokenDatum.messageData.wstrName.empty())
+			textDatum.wstrText = win_text::WidenUtf8(tokenDatum.strData);
+			if (!voicePathBuffer.empty())
 			{
-				textDatum.wstrText = tokenDatum.messageData.wstrName;
-				textDatum.wstrText += L":\n";
-			}
-			textDatum.wstrText += tokenDatum.messageData.wstrText;
-			if (!wstrVoicePath.empty())
-			{
-				textDatum.wstrVoicePath = wstrVoicePath;
-				wstrVoicePath.clear();
+				textDatum.wstrVoicePath = voicePathBuffer;
+				voicePathBuffer.clear();
 			}
 			textData.push_back(std::move(textDatum));
-		}
-		break;
-		case TokenDataType::kVoice:
-			wstrVoicePath = resourcePath.wstrVoiceFolder +  L"\\" + win_text::WidenUtf8(tokenDatum.strVoicePath) + L".mp3";
-			break;
-		}
-	}
 
-	/*台本なし・読み取り失敗*/
-	if (textData.empty())
-	{
-		std::vector<std::wstring> audioFilePaths;
-		win_filesystem::CreateFilePathList(resourcePath.wstrVoiceFolder.c_str(), L".mp3", audioFilePaths);
-		for (const std::wstring& audioFilePath : audioFilePaths)
+			sceneDatumBuffer.nTextIndex = textData.size() - 1;
+			sceneData.push_back(sceneDatumBuffer);
+		}
+		else if (tokenDatum.type == ETokenDataType::kVoice)
 		{
-			textData.emplace_back(adv::TextDatum{ L"", audioFilePath });
+			voicePathBuffer = resourcePath.wstrVoiceFolder + L"\\" + win_text::WidenUtf8(tokenDatum.strData) + L".mp3";
+		}
+		else if (tokenDatum.type == ETokenDataType::kAnimation)
+		{
+			if (tokenDatum.strData.find("flash") == std::string::npos)
+			{
+				std::wstring wstr = win_text::WidenUtf8(tokenDatum.strData);
+
+				const auto& iter = std::find(animationNames.begin(), animationNames.end(), wstr);
+				if (iter == animationNames.cend())
+				{
+					if (!animationNames.empty())
+					{
+						++sceneDatumBuffer.nImageIndex;
+					}
+					animationNames.push_back(std::move(wstr));
+				}
+			}
 		}
 	}
 

@@ -2,11 +2,10 @@
 #include <Windows.h>
 #include <CommCtrl.h>
 
-
 #include "main_window.h"
+
 #include "win_dialogue.h"
 #include "win_filesystem.h"
-#include "sngk.h"
 #include "media_setting_dialogue.h"
 #include "Resource.h"
 
@@ -130,6 +129,8 @@ LRESULT CMainWindow::HandleMessage(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM l
 		return OnPaint();
 	case WM_ERASEBKGND:
 		return 1;
+	case WM_KEYDOWN:
+		return OnKeyDown(wParam, lParam);
 	case WM_KEYUP:
 		return OnKeyUp(wParam, lParam);
 	case WM_COMMAND:
@@ -166,7 +167,7 @@ LRESULT CMainWindow::OnCreate(HWND hWnd)
 
 	m_pViewManager = new CViewManager(m_hWnd);
 
-	m_pSngkImageTransferor = new CSngkImageTransferor(m_pD2ImageDrawer->GetD2DeviceContext());
+	m_pSngkSceneCrafter = new CSngkSceneCrafter(m_pD2ImageDrawer->GetD2DeviceContext());
 
 	return 0;
 }
@@ -180,10 +181,10 @@ LRESULT CMainWindow::OnDestroy()
 /*WM_CLOSE*/
 LRESULT CMainWindow::OnClose()
 {
-	if (m_pSngkImageTransferor != nullptr)
+	if (m_pSngkSceneCrafter != nullptr)
 	{
-		delete m_pSngkImageTransferor;
-		m_pSngkImageTransferor = nullptr;
+		delete m_pSngkSceneCrafter;
+		m_pSngkSceneCrafter = nullptr;
 	}
 
 	if (m_pViewManager != nullptr)
@@ -221,7 +222,7 @@ LRESULT CMainWindow::OnPaint()
 	PAINTSTRUCT ps{};
 	::BeginPaint(m_hWnd, &ps);
 
-	if (m_pD2ImageDrawer == nullptr || m_pD2TextWriter == nullptr || m_pViewManager == nullptr || m_pSngkImageTransferor == nullptr)
+	if (m_pD2ImageDrawer == nullptr || m_pD2TextWriter == nullptr || m_pViewManager == nullptr || m_pSngkSceneCrafter == nullptr)
 	{
 		::EndPaint(m_hWnd, &ps);
 		return 0;
@@ -231,7 +232,7 @@ LRESULT CMainWindow::OnPaint()
 
 	m_pD2ImageDrawer->Clear();
 
-	ID2D1Bitmap* pImage = m_pSngkImageTransferor->GetCurrentImage();
+	ID2D1Bitmap* pImage = m_pSngkSceneCrafter->GetCurrentImage();
 	if (pImage != nullptr)
 	{
 		bRet = m_pD2ImageDrawer->Draw(pImage, { m_pViewManager->GetXOffset(), m_pViewManager->GetYOffset() }, m_pViewManager->GetScale());
@@ -241,7 +242,7 @@ LRESULT CMainWindow::OnPaint()
 	{
 		if (!m_bTextHidden)
 		{
-			const std::wstring wstr = FormatCurrentText();
+			const std::wstring wstr = m_pSngkSceneCrafter->GetCurrentFormattedText();
 			m_pD2TextWriter->OutLinedDraw(wstr.c_str(), static_cast<unsigned long>(wstr.size()));
 		}
 		m_pD2ImageDrawer->Display();
@@ -258,6 +259,24 @@ LRESULT CMainWindow::OnPaint()
 /*WM_SIZE*/
 LRESULT CMainWindow::OnSize()
 {
+	return 0;
+}
+/*WM_KEYDOWN*/
+LRESULT CMainWindow::OnKeyDown(WPARAM wParam, LPARAM lParam)
+{
+	switch (wParam)
+	{
+	case VK_RIGHT:
+		AutoTexting();
+		break;
+	case VK_LEFT:
+		ShiftText(false);
+		break;
+	default:
+
+		break;
+	}
+
 	return 0;
 }
 /*WM_KEYUP*/
@@ -362,9 +381,9 @@ LRESULT CMainWindow::OnMouseWheel(WPARAM wParam, LPARAM lParam)
 
 	if (usKey == MK_LBUTTON)
 	{
-		if (m_pSngkImageTransferor != nullptr)
+		if (m_pSngkSceneCrafter != nullptr)
 		{
-			m_pSngkImageTransferor->UpdateAnimationInterval(iScroll > 0);
+			m_pSngkSceneCrafter->UpdateAnimationInterval(iScroll > 0);
 		}
 		m_bLeftCombinated = true;
 	}
@@ -416,7 +435,13 @@ LRESULT CMainWindow::OnLButtonUp(WPARAM wParam, LPARAM lParam)
 
 		if (iX == 0 && iY == 0)
 		{
-			ShiftPaintData(true);
+			if (m_pSngkSceneCrafter != nullptr)
+			{
+				if (m_pSngkSceneCrafter->IsPaused())
+				{
+					m_pSngkSceneCrafter->ShiftAnimation();
+				}
+			}
 		}
 	}
 
@@ -435,9 +460,9 @@ LRESULT CMainWindow::OnMButtonUp(WPARAM wParam, LPARAM lParam)
 			m_pViewManager->ResetZoom();
 		}
 
-		if (m_pSngkImageTransferor != nullptr)
+		if (m_pSngkSceneCrafter != nullptr)
 		{
-			m_pSngkImageTransferor->ResetAnimationInterval();
+			m_pSngkSceneCrafter->ResetAnimationInterval();
 		}
 	}
 
@@ -523,7 +548,7 @@ void CMainWindow::MenuOnOpen()
 	std::wstring wstrFolder = win_dialogue::SelectWorkFolder(m_hWnd);
 	if (!wstrFolder.empty())
 	{
-		SetupScenarioResources(wstrFolder.c_str());
+		SetupScenario(wstrFolder.c_str());
 		CreateFolderList(wstrFolder.c_str());
 	}
 }
@@ -534,7 +559,7 @@ void CMainWindow::MenuOnNextFolder()
 
 	++m_nFolderIndex;
 	if (m_nFolderIndex >= m_folders.size())m_nFolderIndex = 0;
-	SetupScenarioResources(m_folders[m_nFolderIndex].c_str());
+	SetupScenario(m_folders[m_nFolderIndex].c_str());
 }
 /*前フォルダに移動*/
 void CMainWindow::MenuOnForeFolder()
@@ -543,7 +568,7 @@ void CMainWindow::MenuOnForeFolder()
 
 	--m_nFolderIndex;
 	if (m_nFolderIndex >= m_folders.size())m_nFolderIndex = m_folders.size() - 1;
-	SetupScenarioResources(m_folders[m_nFolderIndex].c_str());
+	SetupScenario(m_folders[m_nFolderIndex].c_str());
 }
 /*音声ループ設定変更*/
 void CMainWindow::MenuOnLoop()
@@ -571,7 +596,7 @@ void CMainWindow::MenuOnVolume()
 /*一時停止*/
 void CMainWindow::MenuOnPauseImage()
 {
-	if (m_pSngkImageTransferor != nullptr)
+	if (m_pSngkSceneCrafter != nullptr)
 	{
 		HMENU hMenuBar = ::GetMenu(m_hWnd);
 		if (hMenuBar != nullptr)
@@ -579,7 +604,7 @@ void CMainWindow::MenuOnPauseImage()
 			HMENU hMenu = ::GetSubMenu(hMenuBar, MenuBar::kImage);
 			if (hMenu != nullptr)
 			{
-				bool bRet = m_pSngkImageTransferor->TogglePause();
+				bool bRet = m_pSngkSceneCrafter->TogglePause();
 				::CheckMenuItem(hMenu, Menu::kPauseImage, bRet ? MF_CHECKED : MF_UNCHECKED);
 			}
 		}
@@ -637,80 +662,38 @@ bool CMainWindow::CreateFolderList(const wchar_t* pwzFolderPath)
 
 	return m_folders.size() > 0;
 }
-/*再生素材ファイル一覧作成*/
-void CMainWindow::SetupScenarioResources(const wchar_t* pwzFolderPath)
+/*寸劇構築*/
+void CMainWindow::SetupScenario(const wchar_t* pwzFolderPath)
 {
 	if (pwzFolderPath == nullptr)return;
 
-	SetImageList(pwzFolderPath);
-	CreateMessageList(pwzFolderPath);
-
-	UpdateText();
-}
-/*連続画像一覧設定*/
-void CMainWindow::SetImageList(const wchar_t* pwzImageFolderPath)
-{
-	std::vector<std::wstring> imageFilePaths;
-	bool bRet = win_filesystem::CreateFilePathList(pwzImageFolderPath, L".jpg", imageFilePaths);
-	win_filesystem::CreateFilePathList(pwzImageFolderPath, L".png", imageFilePaths);
-
-	if (m_pSngkImageTransferor != nullptr)
+	if (m_pSngkSceneCrafter != nullptr)
 	{
-		bRet = m_pSngkImageTransferor->SetImages(imageFilePaths);
-		if (bRet)
+		m_bPlayReady = m_pSngkSceneCrafter->LoadScenario(pwzFolderPath);
+		if (m_bPlayReady)
 		{
+			m_textClock.Restart();
+
 			unsigned int uiWidth = 0;
 			unsigned int uiHeight = 0;
-			m_pSngkImageTransferor->GetImageSize(&uiWidth, &uiHeight);
+			m_pSngkSceneCrafter->GetCurrentImageSize(&uiWidth, &uiHeight);
 
 			if (m_pViewManager != nullptr)
 			{
 				m_pViewManager->SetBaseSize(uiWidth, uiHeight);
 				m_pViewManager->ResetZoom();
 			}
+
+			UpdateText();
 		}
 	}
 
-	m_bPlayReady = bRet;
-
-	ChangeWindowTitle(m_bPlayReady ? pwzImageFolderPath : nullptr);
-}
-/*文章一覧作成*/
-bool CMainWindow::CreateMessageList(const wchar_t* pwzFolderPath)
-{
-	m_textData.clear();
-	m_nTextIndex = 0;
-	m_textClock.Restart();
-	sngk::SearchAndLoadScenarioFile(pwzFolderPath, m_textData);
-
-	return !m_textData.empty();
+	ChangeWindowTitle(m_bPlayReady ? pwzFolderPath : nullptr);
 }
 /*再描画要求*/
 void CMainWindow::UpdateScreen()
 {
 	::InvalidateRect(m_hWnd, nullptr, FALSE);
-}
-/*表示図画送り・戻し*/
-void CMainWindow::ShiftPaintData(bool bForward)
-{
-	if (m_pSngkImageTransferor != nullptr)
-	{
-		m_pSngkImageTransferor->ShiftImage();
-	}
-}
-/*表示文作成*/
-std::wstring CMainWindow::FormatCurrentText()
-{
-	std::wstring wstr;
-	if (m_nTextIndex < m_textData.size())
-	{
-		wstr.reserve(128);
-		wstr = m_textData[m_nTextIndex].wstrText;
-		if (!wstr.empty() && wstr.back() != L'\n') wstr += L"\n ";
-		wstr += std::to_wstring(m_nTextIndex + 1) + L"/" + std::to_wstring(m_textData.size());
-	}
-
-	return wstr;
 }
 /*文章表示経過時間確認*/
 void CMainWindow::CheckTextClock()
@@ -731,33 +714,23 @@ void CMainWindow::CheckTextClock()
 /*文章送り・戻し*/
 void CMainWindow::ShiftText(bool bForward)
 {
-	if (!m_textData.empty())
+	if (m_pSngkSceneCrafter != nullptr)
 	{
-		if (bForward)
-		{
-			++m_nTextIndex;
-			if (m_nTextIndex >= m_textData.size())m_nTextIndex = 0;
-		}
-		else
-		{
-			--m_nTextIndex;
-			if (m_nTextIndex >= m_textData.size())m_nTextIndex = m_textData.size() - 1;
-		}
+		m_pSngkSceneCrafter->ShiftScene(bForward);
+		UpdateText();
 	}
-	
-	UpdateText();
 }
 /*文章更新*/
 void CMainWindow::UpdateText()
 {
-	if (!m_textData.empty())
+	if (m_pSngkSceneCrafter != nullptr)
 	{
-		const adv::TextDatum& t = m_textData[m_nTextIndex];
-		if (!t.wstrVoicePath.empty())
+		if (m_pAudioPlayer != nullptr)
 		{
-			if (m_pAudioPlayer != nullptr)
+			const wchar_t* pwzVoiceFilePath = m_pSngkSceneCrafter->GetCurrentVoiceFilePath();
+			if (pwzVoiceFilePath != nullptr && *pwzVoiceFilePath != L'\0')
 			{
-				m_pAudioPlayer->Play(t.wstrVoicePath.c_str());
+				m_pAudioPlayer->Play(pwzVoiceFilePath);
 			}
 		}
 	}
@@ -765,5 +738,11 @@ void CMainWindow::UpdateText()
 /*自動送り*/
 void CMainWindow::AutoTexting()
 {
-	if (m_nTextIndex < m_textData.size() - 1)ShiftText(true);
+	if (m_pSngkSceneCrafter != nullptr)
+	{
+		if (!m_pSngkSceneCrafter->HasReachedLastScene())
+		{
+			ShiftText(true);
+		}
+	}
 }

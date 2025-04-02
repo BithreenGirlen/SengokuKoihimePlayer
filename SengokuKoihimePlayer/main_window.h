@@ -11,7 +11,7 @@
 #include "mf_media_player.h"
 #include "view_manager.h"
 #include "adv.h"
-#include "sngk_image_transferor.h"
+#include "sngk_scene_crafter.h"
 
 class CMainWindow
 {
@@ -34,6 +34,7 @@ private:
 	LRESULT OnClose();
 	LRESULT OnPaint();
 	LRESULT OnSize();
+	LRESULT OnKeyDown(WPARAM wParam, LPARAM lParam);
 	LRESULT OnKeyUp(WPARAM wParam, LPARAM lParam);
 	LRESULT OnCommand(WPARAM wParam, LPARAM lParam);
 	LRESULT OnTimer(WPARAM wParam);
@@ -83,9 +84,7 @@ private:
 	void SwitchWindowMode();
 
 	bool CreateFolderList(const wchar_t* pwzFolderPath);
-	void SetupScenarioResources(const wchar_t* pwzFolderPath);
-	void SetImageList(const wchar_t* pwzImageFolderPath);
-	bool CreateMessageList(const wchar_t* pwzFolderPath);
+	void SetupScenario(const wchar_t* pwzFolderPath);
 
 	void UpdateScreen();
 
@@ -93,15 +92,9 @@ private:
 	CD2TextWriter* m_pD2TextWriter = nullptr;
 	CMfMediaPlayer* m_pAudioPlayer = nullptr;
 	CViewManager* m_pViewManager = nullptr;
-	CSngkImageTransferor* m_pSngkImageTransferor = nullptr;
+	CSngkSceneCrafter* m_pSngkSceneCrafter = nullptr;
 
-	std::vector<adv::TextDatum> m_textData;
-	size_t m_nTextIndex = 0;
 	CWinClock m_textClock;
-
-	void ShiftPaintData(bool bForward);
-
-	std::wstring FormatCurrentText();
 
 	void CheckTextClock();
 	void ShiftText(bool bForward);
