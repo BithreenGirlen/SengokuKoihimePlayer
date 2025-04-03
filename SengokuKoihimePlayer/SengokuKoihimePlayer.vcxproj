@@ -130,6 +130,9 @@
     <ClInclude Include="adv.h" />
     <ClInclude Include="d2_image_drawer.h" />
     <ClInclude Include="d2_text_writer.h" />
+    <ClInclude Include="dialogue_controls.h" />
+    <ClInclude Include="dialogue_template.h" />
+    <ClInclude Include="font_setting_dialogue.h" />
     <ClInclude Include="framework.h" />
     <ClInclude Include="main_window.h" />
     <ClInclude Include="media_setting_dialogue.h" />
@@ -142,12 +145,16 @@
     <ClInclude Include="win_clock.h" />
     <ClInclude Include="win_dialogue.h" />
     <ClInclude Include="win_filesystem.h" />
+    <ClInclude Include="win_font.h" />
     <ClInclude Include="win_image.h" />
     <ClInclude Include="win_text.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="d2_image_drawer.cpp" />
     <ClCompile Include="d2_text_writer.cpp" />
+    <ClCompile Include="dialogue_controls.cpp" />
+    <ClCompile Include="dialogue_template.cpp" />
+    <ClCompile Include="font_setting_dialogue.cpp" />
     <ClCompile Include="main_window.cpp" />
     <ClCompile Include="media_setting_dialogue.cpp" />
     <ClCompile Include="mf_media_player.cpp" />
@@ -158,6 +165,7 @@
     <ClCompile Include="win_clock.cpp" />
     <ClCompile Include="win_dialogue.cpp" />
     <ClCompile Include="win_filesystem.cpp" />
+    <ClCompile Include="win_font.cpp" />
     <ClCompile Include="win_image.cpp" />
     <ClCompile Include="win_text.cpp" />
   </ItemGroup>

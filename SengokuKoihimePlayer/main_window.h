@@ -10,15 +10,16 @@
 #include "d2_text_writer.h"
 #include "mf_media_player.h"
 #include "view_manager.h"
-#include "adv.h"
 #include "sngk_scene_crafter.h"
+#include "font_setting_dialogue.h"
+#include "win_clock.h"
 
 class CMainWindow
 {
 public:
 	CMainWindow();
 	~CMainWindow();
-	bool Create(HINSTANCE hInstance, const wchar_t* pwzWindowName);
+	bool Create(HINSTANCE hInstance, const wchar_t* pwzWindowName, HICON hIcon = nullptr);
 	int MessageLoop();
 	HWND GetHwnd()const { return m_hWnd;}
 private:
@@ -47,12 +48,12 @@ private:
 	enum Menu
 	{
 		kOpenFolder = 1,
-		kAudioLoop, kAudioSetting,
+		kAudioSetting, kFontSetting,
 		kPauseImage
 	};
 	enum MenuBar
 	{
-		kFolder, kAudio, kImage
+		kFolder, kSetting, kImage
 	};
 
 	POINT m_cursorPos{};
@@ -75,8 +76,8 @@ private:
 	void MenuOnNextFolder();
 	void MenuOnForeFolder();
 
-	void MenuOnLoop();
-	void MenuOnVolume();
+	void MenuOnAudioSetting();
+	void MenuOnFontSetting();
 
 	void MenuOnPauseImage();
 
@@ -86,13 +87,15 @@ private:
 	bool CreateFolderList(const wchar_t* pwzFolderPath);
 	void SetupScenario(const wchar_t* pwzFolderPath);
 
-	void UpdateScreen();
+	void UpdateScreen() const;
 
 	CD2ImageDrawer* m_pD2ImageDrawer = nullptr;
 	CD2TextWriter* m_pD2TextWriter = nullptr;
 	CMfMediaPlayer* m_pAudioPlayer = nullptr;
 	CViewManager* m_pViewManager = nullptr;
 	CSngkSceneCrafter* m_pSngkSceneCrafter = nullptr;
+
+	CFontSettingDialogue* m_pFontSettingDialogue = nullptr;
 
 	CWinClock m_textClock;
 

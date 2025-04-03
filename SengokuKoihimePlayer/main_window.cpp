@@ -1,13 +1,9 @@
 ﻿
-#include <Windows.h>
-#include <CommCtrl.h>
-
 #include "main_window.h"
 
 #include "win_dialogue.h"
 #include "win_filesystem.h"
 #include "media_setting_dialogue.h"
-#include "Resource.h"
 
 
 CMainWindow::CMainWindow()
@@ -20,7 +16,7 @@ CMainWindow::~CMainWindow()
 
 }
 
-bool CMainWindow::Create(HINSTANCE hInstance, const wchar_t* pwzWindowName)
+bool CMainWindow::Create(HINSTANCE hInstance, const wchar_t* pwzWindowName, HICON hIcon)
 {
 	WNDCLASSEXW wcex{};
 
@@ -31,12 +27,14 @@ bool CMainWindow::Create(HINSTANCE hInstance, const wchar_t* pwzWindowName)
 	wcex.cbClsExtra = 0;
 	wcex.cbWndExtra = 0;
 	wcex.hInstance = hInstance;
-	wcex.hIcon = ::LoadIcon(hInstance, MAKEINTRESOURCE(IDI_ICON_10535006));
 	wcex.hCursor = ::LoadCursor(nullptr, IDC_ARROW);
 	wcex.hbrBackground = ::GetSysColorBrush(COLOR_BTNFACE);
-	wcex.lpszMenuName = MAKEINTRESOURCEW(IDI_ICON_10535006);
 	wcex.lpszClassName = m_swzClassName;
-	wcex.hIconSm = ::LoadIcon(wcex.hInstance, MAKEINTRESOURCE(IDI_ICON_10535006));
+	if (hIcon != nullptr)
+	{
+		wcex.hIcon = hIcon;
+		wcex.hIconSm = hIcon;
+	}
 
 	if (::RegisterClassExW(&wcex))
 	{
@@ -169,6 +167,8 @@ LRESULT CMainWindow::OnCreate(HWND hWnd)
 
 	m_pSngkSceneCrafter = new CSngkSceneCrafter(m_pD2ImageDrawer->GetD2DeviceContext());
 
+	m_pFontSettingDialogue = new CFontSettingDialogue();
+
 	return 0;
 }
 /*WM_DESTROY*/
@@ -181,6 +181,16 @@ LRESULT CMainWindow::OnDestroy()
 /*WM_CLOSE*/
 LRESULT CMainWindow::OnClose()
 {
+	if (m_pFontSettingDialogue != nullptr)
+	{
+		if (m_pFontSettingDialogue->GetHwnd() != nullptr)
+		{
+			::SendMessage(m_pFontSettingDialogue->GetHwnd(), WM_CLOSE, 0, 0);
+			delete m_pFontSettingDialogue;
+			m_pFontSettingDialogue = nullptr;
+		}
+	}
+
 	if (m_pSngkSceneCrafter != nullptr)
 	{
 		delete m_pSngkSceneCrafter;
@@ -220,7 +230,7 @@ LRESULT CMainWindow::OnClose()
 LRESULT CMainWindow::OnPaint()
 {
 	PAINTSTRUCT ps{};
-	::BeginPaint(m_hWnd, &ps);
+	HDC hDC = ::BeginPaint(m_hWnd, &ps);
 
 	if (m_pD2ImageDrawer == nullptr || m_pD2TextWriter == nullptr || m_pViewManager == nullptr || m_pSngkSceneCrafter == nullptr)
 	{
@@ -318,11 +328,11 @@ LRESULT CMainWindow::OnCommand(WPARAM wParam, LPARAM lParam)
 		case Menu::kOpenFolder:
 			MenuOnOpen();
 			break;
-		case Menu::kAudioLoop:
-			MenuOnLoop();
-			break;
 		case Menu::kAudioSetting:
-			MenuOnVolume();
+			MenuOnAudioSetting();
+			break;
+		case Menu::kFontSetting:
+			MenuOnFontSetting();
 			break;
 		case Menu::kPauseImage:
 			MenuOnPauseImage();
@@ -477,7 +487,7 @@ LRESULT CMainWindow::OnMButtonUp(WPARAM wParam, LPARAM lParam)
 void CMainWindow::InitialiseMenuBar()
 {
 	HMENU hMenuFolder = nullptr;
-	HMENU hMenuAudio = nullptr;
+	HMENU hMenuSetting = nullptr;
 	HMENU kMenuImage = nullptr;
 	HMENU hMenuBar = nullptr;
 	BOOL iRet = FALSE;
@@ -490,12 +500,12 @@ void CMainWindow::InitialiseMenuBar()
 	iRet = ::AppendMenuA(hMenuFolder, MF_STRING, Menu::kOpenFolder, "Open");
 	if (iRet == 0)goto failed;
 
-	hMenuAudio = ::CreateMenu();
-	if (hMenuAudio == nullptr)goto failed;
+	hMenuSetting = ::CreateMenu();
+	if (hMenuSetting == nullptr)goto failed;
 
-	iRet = ::AppendMenuA(hMenuAudio, MF_STRING, Menu::kAudioLoop, "Loop");
+	iRet = ::AppendMenuA(hMenuSetting, MF_STRING, Menu::kAudioSetting, "Audio");
 	if (iRet == 0)goto failed;
-	iRet = ::AppendMenuA(hMenuAudio, MF_STRING, Menu::kAudioSetting, "Setting");
+	iRet = ::AppendMenuA(hMenuSetting, MF_STRING, Menu::kFontSetting, "Font");
 	if (iRet == 0)goto failed;
 
 	kMenuImage = ::CreateMenu();
@@ -507,7 +517,7 @@ void CMainWindow::InitialiseMenuBar()
 
 	iRet = ::AppendMenuA(hMenuBar, MF_POPUP, reinterpret_cast<UINT_PTR>(hMenuFolder), "Folder");
 	if (iRet == 0)goto failed;
-	iRet = ::AppendMenuA(hMenuBar, MF_POPUP, reinterpret_cast<UINT_PTR>(hMenuAudio), "Audio");
+	iRet = ::AppendMenuA(hMenuBar, MF_POPUP, reinterpret_cast<UINT_PTR>(hMenuSetting), "Setting");
 	if (iRet == 0)goto failed;
 	iRet = ::AppendMenuA(hMenuBar, MF_POPUP, reinterpret_cast<UINT_PTR>(kMenuImage), "Image");
 	if (iRet == 0)goto failed;
@@ -528,9 +538,9 @@ failed:
 	{
 		::DestroyMenu(hMenuFolder);
 	}
-	if (hMenuAudio != nullptr)
+	if (hMenuSetting != nullptr)
 	{
-		::DestroyMenu(hMenuAudio);
+		::DestroyMenu(hMenuSetting);
 	}
 	if (kMenuImage != nullptr)
 	{
@@ -540,7 +550,6 @@ failed:
 	{
 		::DestroyMenu(hMenuBar);
 	}
-
 }
 /*フォルダ選択*/
 void CMainWindow::MenuOnOpen()
@@ -570,28 +579,28 @@ void CMainWindow::MenuOnForeFolder()
 	if (m_nFolderIndex >= m_folders.size())m_nFolderIndex = m_folders.size() - 1;
 	SetupScenario(m_folders[m_nFolderIndex].c_str());
 }
-/*音声ループ設定変更*/
-void CMainWindow::MenuOnLoop()
-{
-	if (m_pAudioPlayer != nullptr)
-	{
-		HMENU hMenuBar = ::GetMenu(m_hWnd);
-		if (hMenuBar != nullptr)
-		{
-			HMENU hMenu = ::GetSubMenu(hMenuBar, MenuBar::kAudio);
-			if (hMenu != nullptr)
-			{
-				BOOL iRet = m_pAudioPlayer->SwitchLoop();
-				::CheckMenuItem(hMenu, Menu::kAudioLoop, iRet == TRUE ? MF_CHECKED : MF_UNCHECKED);
-			}
-		}
-	}
-}
 /*音量・再生速度変更*/
-void CMainWindow::MenuOnVolume()
+void CMainWindow::MenuOnAudioSetting()
 {
 	CMediaSettingDialogue sMediaSettingDialogue;
-	sMediaSettingDialogue.Open(m_hInstance, m_hWnd, m_pAudioPlayer, L"Audio");
+	sMediaSettingDialogue.Open(m_hInstance, m_hWnd, m_pAudioPlayer, L"Audio", reinterpret_cast<HICON>(::GetClassLongPtr(m_hWnd, GCLP_HICON)));
+}
+/*書体設定*/
+void CMainWindow::MenuOnFontSetting()
+{
+	if (m_pFontSettingDialogue != nullptr)
+	{
+		if (m_pFontSettingDialogue->GetHwnd() == nullptr)
+		{
+			HWND hWnd = m_pFontSettingDialogue->Open(m_hInstance, m_hWnd, L"Font", m_pD2TextWriter);
+			::SendMessage(hWnd, WM_SETICON, ICON_SMALL, ::GetClassLongPtr(m_hWnd, GCLP_HICON));
+			::ShowWindow(hWnd, SW_SHOWNORMAL);
+		}
+		else
+		{
+			::SetFocus(m_pFontSettingDialogue->GetHwnd());
+		}
+	}
 }
 /*一時停止*/
 void CMainWindow::MenuOnPauseImage()
@@ -610,7 +619,7 @@ void CMainWindow::MenuOnPauseImage()
 		}
 	}
 }
-/*標題変更*/
+/*表題変更*/
 void CMainWindow::ChangeWindowTitle(const wchar_t* pzTitle)
 {
 	std::wstring wstr;
@@ -691,7 +700,7 @@ void CMainWindow::SetupScenario(const wchar_t* pwzFolderPath)
 	ChangeWindowTitle(m_bPlayReady ? pwzFolderPath : nullptr);
 }
 /*再描画要求*/
-void CMainWindow::UpdateScreen()
+void CMainWindow::UpdateScreen() const
 {
 	::InvalidateRect(m_hWnd, nullptr, FALSE);
 }
