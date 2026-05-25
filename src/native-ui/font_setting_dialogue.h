@@ -11,20 +11,20 @@ public:
 	CFontSettingDialogue();
 	~CFontSettingDialogue();
 
-	HWND Open(HINSTANCE hInstance, HWND hWndParent, const wchar_t* pwzWindowName, void *pTextWriter);
+	HWND open(HINSTANCE hInstance, HWND hWndParent, const wchar_t* pwzWindowName, void *pTextWriter);
 
-	HWND GetHwnd()const { return m_hWnd; }
+	HWND getHwnd()const { return m_hWnd; }
 private:
 	HWND m_hWnd = nullptr;
 
 	static LRESULT CALLBACK DialogProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
-	LRESULT HandleMessage(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
-	LRESULT OnInit(HWND hWnd);
-	LRESULT OnClose();
-	LRESULT OnSize();
-	LRESULT OnNotify(WPARAM wParam, LPARAM lParam);
-	LRESULT OnCommand(WPARAM wParam, LPARAM lParam);
-	LRESULT OnVScroll(WPARAM wParam, LPARAM lParam);
+	LRESULT handleMessage(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+	LRESULT onInit(HWND hWnd);
+	LRESULT onClose();
+	LRESULT onSize();
+	LRESULT onNotify(WPARAM wParam, LPARAM lParam);
+	LRESULT onCommand(WPARAM wParam, LPARAM lParam);
+	LRESULT onVScroll(WPARAM wParam, LPARAM lParam);
 
 	enum Constants { kFontSize = 16 };
 	enum Controls
@@ -35,8 +35,6 @@ private:
 	};
 
 	HFONT m_hFont = nullptr;
-
-	static BOOL CALLBACK SetFontCallback(HWND hWnd, LPARAM lParam);
 
 	CStatic m_fontNameStatic;
 	CComboBox m_fontNameComboBox;
@@ -52,11 +50,11 @@ private:
 
 	CButton m_applyButton;
 
-	void ResizeControls();
+	void resizeControls();
 
-	void OnApplyButton();
+	void onApplyButton();
 
-	void SetSliderPosition();
+	void setSliderPosition();
 
 	void* m_pTextWriter = nullptr;
 };

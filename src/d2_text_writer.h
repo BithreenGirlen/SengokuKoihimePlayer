@@ -13,26 +13,35 @@ public:
 	CD2TextWriter(ID2D1Factory1* pD2d1Factory1, ID2D1DeviceContext* pD2d1DeviceContext);
 	~CD2TextWriter();
 
-	bool SetFontByFontName(const wchar_t* pwzFontFamilyName, const wchar_t* pwzLocaleName = nullptr, bool bBold = true, bool bItalic = false, float fFontSize = kfDefaultFontSize);
-	bool SetupOutLinedDrawing(const wchar_t* pwzFontFilePath, bool bSimulateBold = true, bool bSimulateItalic = true, float fFontSize = kfDefaultFontSize, float fStrokeThickness = kfDefaultStrokeThickness);
+	/// @brief Set system font to be used in draw() and in layedoutDraw()
+	bool setFontByFontName(const wchar_t* fontFamilyName, const wchar_t* localeName = nullptr, bool bold = true, bool italic = false, float fontSize = kfDefaultFontSize);
+	/// @brief Set font to be used in outLinedDraw()
+	bool setupOutLinedDrawing(const wchar_t* fontFilePath, bool toSmulateBold = true, bool toSimulateItalic = true, float fontSize = kfDefaultFontSize, float thickness = kfDefaultThickness);
 
-	void NoBorderDraw(const wchar_t* wszText, unsigned long ulTextLength, const D2D1_RECT_F& rect = D2D1_RECT_F{});
-	void LayedOutDraw(const wchar_t* wszText, unsigned long ulTextLength, const D2D1_RECT_F& rect = D2D1_RECT_F{});
+	/// @brief Draw without outline
+	void draw(const wchar_t* text, unsigned long textLength, const D2D1_RECT_F& rect = D2D1_RECT_F{});
+	/// @brief Draw with fixed space between characters
+	void layedOutDraw(const wchar_t* text, unsigned long textLength, const D2D1_RECT_F& rect = D2D1_RECT_F{});
+	/// @brief Draw characters having outline
+	void outLinedDraw(const wchar_t* text, unsigned long textLength, const D2D1_RECT_F& rect = D2D1_RECT_F{});
 
-	void OutLinedDraw(const wchar_t* wszText, unsigned long ulTextLength, const D2D1_RECT_F& rect = D2D1_RECT_F{});
+	void toggleTextColour() { m_isColourReversed ^= true; }
 
-	void SwitchTextColour() { m_bColourReversed ^= true; }
+	float getFontSize() const { return m_fFontSize; }
+	float getThickness() const { return m_fThickness; }
 
-	float GetFontSize() const { return m_fFontSize; }
-	float GetStrokeThickness() const { return m_fStrokeThickness; }
+	/// @brief Bold style is simulated or not
+	bool hasBoldStyle()const;
+	/// @brief Italic style is simulated or not
+	bool hasItalicStyle()const;
 
-	bool HasBoldStyle()const;
-	bool HasItalicStyle()const;
+	/// @brief Write font family name to buffer; Pass wchar_t buffer[LOCALE_NAME_MAX_LENGTH]
+	bool getFontFamilyName(wchar_t* fontFamilyNamebuffer, unsigned long bufferSize);
 
-	bool GetFontFamilyName(wchar_t* pwzFontFamilyName, unsigned long ulNameLength);
+	void onScaleChanged();
 private:
 	static constexpr float kfDefaultFontSize = 24.f;
-	static constexpr float kfDefaultStrokeThickness = 3.2f;
+	static constexpr float kfDefaultThickness = 3.2f;
 
 	ID2D1Factory1* m_pStoredD2d1Factory1 = nullptr;
 	ID2D1DeviceContext* m_pStoredD2d1DeviceContext = nullptr;
@@ -45,19 +54,20 @@ private:
 	ID2D1SolidColorBrush* m_pD2dSolidColorBrushForOutline = nullptr;
 
 	float m_fFontSize = kfDefaultFontSize;
-	float m_fStrokeThickness = kfDefaultStrokeThickness;
+	float m_fThickness = kfDefaultThickness;
+	unsigned int m_uiDpi = 96;
 
-	bool m_bColourReversed = false;
+	bool m_isColourReversed = false;
 
-	float PointSizeToDip(float fPointSize)const { return (fPointSize / 72.f) * 96.f; };
+	float pointSizeToDip(float fPointSize)const;
 
-	void ReleaseTextFormat();
-	void ReleaseFontFace();
+	void releaseTextFormat();
+	void releaseFontFace();
 
-	bool CreateBrushes();
-	void ReleaseBrushes();
+	bool createBrushes();
+	void releaseBrushes();
 
-	bool SingleLineGlyphDraw(const wchar_t* wszText, unsigned long ulTextLength, const D2D1_POINT_2F& fRawPos = D2D1_POINT_2F{});
+	bool singleLineGlyphDraw(const wchar_t* text, unsigned long textLength, const D2D1_POINT_2F& originalPos = D2D1_POINT_2F{});
 };
 
 #endif // D2_TEXT_WRITER_H_

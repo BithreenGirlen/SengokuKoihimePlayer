@@ -9,12 +9,13 @@ public:
     CWinClock();
     ~CWinClock();
 
-    float GetElapsedTime();
-    void Restart();
+    float getElapsedTime();
+    void restart();
 private:
     LARGE_INTEGER m_nLastCounter{};
+    LARGE_INTEGER m_frequency{};
 
-    LARGE_INTEGER GetNowCounter();
+    LARGE_INTEGER getNowCounter();
 };
 
 #endif // !WIN_CLOCK_H_

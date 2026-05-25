@@ -3,24 +3,45 @@
 
 #include <vector>
 
-struct SImageFrame
-{
-	unsigned int uiWidth = 0;
-	unsigned int uiHeight = 0;
-	int iStride = 0;
-	std::vector<unsigned char> pixels;
-};
-
 namespace win_image
 {
+	struct SImageFrame
+	{
+		unsigned int uiWidth = 0;
+		unsigned int uiHeight = 0;
+		unsigned int uiStride = 0;
+		std::vector<unsigned char> pixels;
+	};
+
 	enum class ERotation
 	{
 		None, Deg90, Deg180, Deg270
 	};
-	bool LoadImageToMemory(const wchar_t* wpzFilePath, SImageFrame* pImageFrame, float fScale = 1.f, ERotation rotation = ERotation::None);
-	bool SkimImageSize(const wchar_t* wpzFilePath, unsigned int* uiWidth, unsigned int* uiHeight);
 
-	bool SaveImageAsPng(const wchar_t* wpzFilePath, SImageFrame* pImageFrame);
-	bool SaveImagesAsGif(const wchar_t* wpzFilePath, const std::vector<SImageFrame> &imageFrames);
+	bool LoadImageToMemory(const wchar_t* filePath, SImageFrame* pImageFrame, float fScale = 1.f, ERotation rotation = ERotation::None);
+	/// @brief Pass `IWICBitmap**` to the second argument.
+	bool LoadImageToWicBitmap(const wchar_t* filePath, void** pWicBitmap, float fScale = 1.f, ERotation rotation = ERotation::None);
+
+	bool SkimImageSize(const wchar_t* filePath, unsigned int* width, unsigned int* height);
+
+	bool SaveImageAsPng(const wchar_t* filePath, unsigned int width, unsigned int height, unsigned int stride, unsigned char* pixels, bool hasAlpha);
+	bool SaveImageAsJpg(const wchar_t* filePath, unsigned int width, unsigned int height, unsigned int stride, unsigned char* pixels, bool hasAlpha);
+
+	class CWicGifEncoder
+	{
+	public:
+		CWicGifEncoder();
+		~CWicGifEncoder();
+
+		bool initialise(const wchar_t* filePath);
+		bool hasBeenInitialised() const;
+		/// @brief Assume that pixel format is RGBA32
+		bool commitFrame(unsigned int width, unsigned int height, unsigned int stride, unsigned char* pixels, bool hasAlpha, float delayInSeconds);
+
+		bool finalise();
+	private:
+		class Impl;
+		Impl* m_impl = nullptr;
+	};
 }
 #endif // !WIN_IMAGE_H_

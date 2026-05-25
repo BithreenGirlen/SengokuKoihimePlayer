@@ -10,59 +10,67 @@
 namespace sngk
 {
 	/*ID抽出*/
-	static std::wstring ExtractCharacterIdFromStillFolderPath(const std::wstring& wstrStillFolderPath)
+	static std::wstring_view ExtractCharacterIdFromStillFolderPath(const std::wstring_view& stillFolderPath)
 	{
-		size_t nPos = wstrStillFolderPath.find_last_of(L"\\/");
-		if (nPos == std::wstring::npos)return std::wstring();
+		static constexpr std::wstring_view stillFolderPrefix = L"st_";
 
-		nPos = wstrStillFolderPath.find(L"st_", nPos);
-		if (nPos == std::wstring::npos)return std::wstring();
+		size_t nPos = stillFolderPath.find_last_of(L"\\/");
+		if (nPos == std::wstring_view::npos)return {};
+		nPos += 1;
 
-		return wstrStillFolderPath.substr(nPos + 3);
+		nPos = stillFolderPath.find(stillFolderPrefix, nPos);
+		if (nPos == std::wstring_view::npos)return {};
+		nPos += stillFolderPrefix.length();
+
+		return stillFolderPath.substr(nPos);
 	}
 
 	/*ID対応先探索*/
-	static std::wstring FindPathContainingCharacterId(const std::wstring& targetFolder, const std::wstring &wstrCharacterId, const wchar_t *pwzFileExtension)
+	static std::wstring FindPathContainingCharacterId(const std::wstring_view& folderPath, const std::wstring_view &characterId, const std::wstring_view& fileSpec)
 	{
-		std::vector<std::wstring> folders;
-		win_filesystem::CreateFilePathList(targetFolder.c_str(), pwzFileExtension, folders);
-		const auto IsContained = [&wstrCharacterId](const std::wstring& wstr)
+		/* Folder path if filteSpec is empty, and filepath if not. */
+		std::vector<std::wstring> paths;
+		win_filesystem::CreateFilePathList(folderPath, fileSpec, paths);
+
+		const auto& iter = std::find_if(paths.begin(), paths.end(), [&characterId](const std::wstring& path)
 			-> bool
 			{
-				return wcsstr(wstr.c_str(), wstrCharacterId.c_str()) != nullptr;
-			};
+				return path.find(characterId) != std::wstring::npos;
+			}
+		);
+		if (iter == paths.cend())return {};
 
-		const auto iter = std::find_if(folders.begin(), folders.end(), IsContained);
-		if (iter == folders.cend())return std::wstring();
-
-		size_t nIndex = std::distance(folders.begin(), iter);
-		return folders[nIndex];
+		size_t nIndex = std::distance(paths.begin(), iter);
+		return paths[nIndex];
 	}
 
 	struct SResourcePath
 	{
-		std::wstring wstrVoiceFolder;
-		std::wstring wstrScenarioFile;
+		std::wstring voiceFolderPath;
+		std::wstring scenarioFilePath;
 	};
 
 	/*音声フォルダ・台本ファイル経路導出*/
-	static bool DeriveResourcePathFromStillFolderPath(const std::wstring& wstrStillFolderPath, SResourcePath &resourcePath)
+	static bool DeriveResourcePathFromStillFolderPath(const std::wstring& stillFolderPath, SResourcePath &resourcePath)
 	{
-		std::wstring wstrCharacterId = ExtractCharacterIdFromStillFolderPath(wstrStillFolderPath);
-		if (wstrCharacterId.empty())return false;
+		std::wstring_view characterId = ExtractCharacterIdFromStillFolderPath(stillFolderPath);
+		if (characterId.empty())return false;
 
-		size_t nPos = wstrStillFolderPath.find(L"adventure");
-		if (nPos == std::wstring::npos)return false;
+		size_t nPos = stillFolderPath.find(L"adventure");
+		if (nPos == std::wstring_view::npos)return false;
 
-		std::wstring wstrBaseFolder = wstrStillFolderPath.substr(0, nPos);
+		wchar_t pathBuffer[1024]{};
+		int length = swprintf_s(pathBuffer, L"%.*s%s", static_cast<int>(nPos), &stillFolderPath[0], L"audios\\voice\\adv");
+		if (length == -1)return false;
 
-		std::wstring wstrVoiceFolder = wstrBaseFolder + L"audios\\voice\\adv";
-		resourcePath.wstrVoiceFolder = FindPathContainingCharacterId(wstrVoiceFolder, wstrCharacterId, nullptr);
-		if (resourcePath.wstrVoiceFolder.empty())return false;
+		resourcePath.voiceFolderPath = FindPathContainingCharacterId(std::wstring_view(pathBuffer, length), characterId, {});
+		if (resourcePath.voiceFolderPath.empty())return false;
 
-		std::wstring wstrScenarioFolder = wstrBaseFolder + L"adventure\\json";
-		resourcePath.wstrScenarioFile = FindPathContainingCharacterId(wstrScenarioFolder, wstrCharacterId, L".json");
-		if (resourcePath.wstrScenarioFile.empty())return false;
+		length = swprintf_s(pathBuffer, L"%.*s%s", static_cast<int>(nPos), &stillFolderPath[0],L"adventure\\json");
+		if (length == -1)return false;
+
+		resourcePath.scenarioFilePath = FindPathContainingCharacterId(std::wstring_view(pathBuffer, length), characterId, L".json");
+		if (resourcePath.scenarioFilePath.empty())return false;
 
 		return true;
 	}
@@ -82,13 +90,13 @@ namespace sngk
 	};
 
 	/*脚本ファイル解析*/
-	static void ParseScenarioFile(const std::string& strScenarioFile, std::vector<STokenDatum>& tokenData, std::string& strError)
+	static bool ParseScenarioFile(const std::string& scenarioFile, std::vector<STokenDatum>& tokenData)
 	{
 		/*音声IDとファイル名が同名なのでloadDataからの写像は作成しない。*/
 
 		try
 		{
-			nlohmann::json nlJson = nlohmann::json::parse(strScenarioFile);
+			nlohmann::json nlJson = nlohmann::json::parse(scenarioFile);
 
 			const nlohmann::json& jData = nlJson.at(5).at(0).at(2);
 
@@ -141,31 +149,28 @@ namespace sngk
 				}
 			}
 		}
-		catch (nlohmann::json::exception e)
+		catch (const nlohmann::json::exception& e)
 		{
-			strError = e.what();
+			win_dialogue::ShowMessageBox("Parse error", e.what());
+			return false;
 		}
+
+		return true;
 	}
 }
 /*脚本ファイル探索と取り込み*/
-bool sngk::SearchAndLoadScenarioFile(const std::wstring& wstrStillFolderPath, std::vector<adv::TextDatum>& textData, std::vector<std::wstring>& animationNames, std::vector<adv::SceneDatum>& sceneData)
+bool sngk::SearchAndLoadScenarioFile(const std::wstring& stillFolderPath, std::vector<adv::TextDatum>& textData, std::vector<std::wstring>& animationNames, std::vector<adv::SceneDatum>& sceneData)
 {
 	SResourcePath resourcePath;
-	bool bRet = DeriveResourcePathFromStillFolderPath(wstrStillFolderPath, resourcePath);
+	bool bRet = DeriveResourcePathFromStillFolderPath(stillFolderPath, resourcePath);
 	if (!bRet)return false;
 
-	std::string strScenarioFile = win_filesystem::LoadFileAsString(resourcePath.wstrScenarioFile.c_str());
-	if (strScenarioFile.empty())return false;
+	std::string scenarioFile = win_filesystem::LoadFileAsString(resourcePath.scenarioFilePath.c_str());
+	if (scenarioFile.empty())return false;
 
 	std::vector<STokenDatum> tokenData;
-	std::string strError;
-	ParseScenarioFile(strScenarioFile, tokenData, strError);
-
-	if (!strError.empty())
-	{
-		win_dialogue::ShowMessageBox("Parse error", strError.c_str());
-		return false;
-	}
+	bRet = ParseScenarioFile(scenarioFile, tokenData);
+	if (!bRet)return false;
 
 	std::wstring voicePathBuffer;
 	adv::SceneDatum sceneDatumBuffer;
@@ -174,12 +179,13 @@ bool sngk::SearchAndLoadScenarioFile(const std::wstring& wstrStillFolderPath, st
 	{
 		if (tokenDatum.type == ETokenDataType::kText)
 		{
-			adv::TextDatum textDatum;
-			textDatum.wstrText.reserve(128);
-			textDatum.wstrText = win_text::WidenUtf8(tokenDatum.strData);
+			adv::TextDatum textDatum
+			{
+				.message = win_text::WidenUtf8(tokenDatum.strData),
+			};
 			if (!voicePathBuffer.empty())
 			{
-				textDatum.wstrVoicePath = voicePathBuffer;
+				textDatum.voiceFilePath = voicePathBuffer;
 				voicePathBuffer.clear();
 			}
 			textData.push_back(std::move(textDatum));
@@ -189,22 +195,22 @@ bool sngk::SearchAndLoadScenarioFile(const std::wstring& wstrStillFolderPath, st
 		}
 		else if (tokenDatum.type == ETokenDataType::kVoice)
 		{
-			voicePathBuffer = resourcePath.wstrVoiceFolder + L"\\" + win_text::WidenUtf8(tokenDatum.strData) + L".mp3";
+			voicePathBuffer.assign(resourcePath.voiceFolderPath).append(L"\\").append(win_text::WidenUtf8(tokenDatum.strData)).append(L".mp3");
 		}
 		else if (tokenDatum.type == ETokenDataType::kAnimation)
 		{
 			if (tokenDatum.strData.find("flash") == std::string::npos)
 			{
-				std::wstring wstr = win_text::WidenUtf8(tokenDatum.strData);
+				std::wstring animationName = win_text::WidenUtf8(tokenDatum.strData);
 
-				const auto& iter = std::find(animationNames.begin(), animationNames.end(), wstr);
+				const auto& iter = std::find(animationNames.begin(), animationNames.end(), animationName);
 				if (iter == animationNames.cend())
 				{
 					if (!animationNames.empty())
 					{
 						++sceneDatumBuffer.nImageIndex;
 					}
-					animationNames.push_back(std::move(wstr));
+					animationNames.push_back(std::move(animationName));
 				}
 			}
 		}

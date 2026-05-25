@@ -1,4 +1,4 @@
-#ifndef MAIN_WINDOW_H_
+﻿#ifndef MAIN_WINDOW_H_
 #define MAIN_WINDOW_H_
 
 #include <Windows.h>
@@ -11,83 +11,91 @@
 #include "mf_media_player.h"
 #include "view_manager.h"
 #include "sngk_scene_crafter.h"
-#include "font_setting_dialogue.h"
 #include "win_clock.h"
+#include "native-ui/font_setting_dialogue.h"
 
 class CMainWindow
 {
 public:
 	CMainWindow();
 	~CMainWindow();
-	bool Create(HINSTANCE hInstance, const wchar_t* pwzWindowName, HICON hIcon = nullptr);
-	int MessageLoop();
-	HWND GetHwnd()const { return m_hWnd;}
+
+	bool create(HINSTANCE hInstance, const wchar_t* windowName, HICON hIcon = nullptr);
+	int messageLoop();
+
+	HWND getHwnd()const { return m_hWnd; }
 private:
-	const wchar_t* m_swzClassName = L"SengokuKoihime player window";
-	std::wstring m_wstrDefaultWindowName;
+	const wchar_t* m_className = L"SengokuKoihime player window";
+	const wchar_t* m_defaultWindowName = L"";
 	HINSTANCE m_hInstance = nullptr;
 	HWND m_hWnd = nullptr;
 
 	static LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 	LRESULT HandleMessage(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
-	LRESULT OnCreate(HWND hWnd);
-	LRESULT OnDestroy();
-	LRESULT OnClose();
-	LRESULT OnPaint();
-	LRESULT OnSize();
-	LRESULT OnKeyDown(WPARAM wParam, LPARAM lParam);
-	LRESULT OnKeyUp(WPARAM wParam, LPARAM lParam);
-	LRESULT OnCommand(WPARAM wParam, LPARAM lParam);
-	LRESULT OnTimer(WPARAM wParam);
-	LRESULT OnMouseMove(WPARAM wParam, LPARAM lParam);
-	LRESULT OnMouseWheel(WPARAM wParam, LPARAM lParam);
-	LRESULT OnLButtonDown(WPARAM wParam, LPARAM lParam);
-	LRESULT OnLButtonUp(WPARAM wParam, LPARAM lParam);
-	LRESULT OnMButtonUp(WPARAM wParam, LPARAM lParam);
+	LRESULT onCreate(HWND hWnd);
+	LRESULT onDestroy();
+	LRESULT onClose();
+	LRESULT onPaint();
+	LRESULT onSize();
+	LRESULT onKeyDown(WPARAM wParam, LPARAM lParam);
+	LRESULT onKeyUp(WPARAM wParam, LPARAM lParam);
+	LRESULT onCommand(WPARAM wParam, LPARAM lParam);
+	LRESULT onTimer(WPARAM wParam);
+	LRESULT onMouseMove(WPARAM wParam, LPARAM lParam);
+	LRESULT onMouseWheel(WPARAM wParam, LPARAM lParam);
+	LRESULT onLButtonDown(WPARAM wParam, LPARAM lParam);
+	LRESULT onLButtonUp(WPARAM wParam, LPARAM lParam);
+	LRESULT onRButtonUp(WPARAM wParam, LPARAM lParam);
+	LRESULT onMButtonUp(WPARAM wParam, LPARAM lParam);
 
-	enum Menu
+	struct Menu
 	{
-		kOpenFolder = 1,
-		kAudioSetting, kFontSetting,
-		kPauseImage
+		enum
+		{
+			kOpenFolder = 1,
+			kAudioSetting, kFontSetting,
+			kPauseImage
+		};
 	};
-	enum MenuBar
+	struct MenuBar { enum { kFolder, kSetting, kImage }; };
+
+	struct MouseState
 	{
-		kFolder, kSetting, kImage
+		bool wasLeftPressed = false;
+		bool hasLeftBeenDragged = false;
+		bool wasLeftCombined = false;
+		bool wasRightCombined = false;
+		/// @brief Last mouse position in client coördinate
+		POINT lastMousePos{};
 	};
 
-	POINT m_cursorPos{};
-	bool m_bLeftDowned = false;
-	bool m_bLeftDragged = false;
-	bool m_bLeftCombinated = false;
+	MouseState m_mouseState;
 
 	HMENU m_hMenuBar = nullptr;
-
-	bool m_bBarHidden = false;
-	bool m_bPlayReady = false;
-	bool m_bTextHidden = false;
+	bool m_isMenuBarHidden = false;
+	bool m_isTextHidden = false;
 
 	std::vector<std::wstring> m_folders;
 	size_t m_nFolderIndex = 0;
 
-	void InitialiseMenuBar();
+	void initialiseMenuBar();
 
-	void MenuOnOpen();
-	void MenuOnNextFolder();
-	void MenuOnForeFolder();
+	void menuOnOpen();
+	void menuOnNextFolder();
+	void menuOnForeFolder();
 
-	void MenuOnAudioSetting();
-	void MenuOnFontSetting();
+	void menuOnAudioSetting();
+	void menuOnFontSetting();
 
-	void MenuOnPauseImage();
+	void menuOnPauseImage();
 
-	void ChangeWindowTitle(const wchar_t* pzTitle);
-	void SwitchWindowMode();
+	void changeWindowTitle(const wchar_t* windowTitle);
+	void toggleWindowBorderStyle();
 
-	bool CreateFolderList(const wchar_t* pwzFolderPath);
-	void SetupScenario(const wchar_t* pwzFolderPath);
+	bool createFolderList(const std::wstring& folderPath);
+	void setupScenario(const std::wstring& folderPath);
 
-	void UpdateScreen() const;
+	void updateScreen() const;
 
 	CD2ImageDrawer* m_pD2ImageDrawer = nullptr;
 	CD2TextWriter* m_pD2TextWriter = nullptr;
@@ -99,10 +107,10 @@ private:
 
 	CWinClock m_textClock;
 
-	void CheckTextClock();
-	void ShiftText(bool bForward);
-	void UpdateText();
-	void AutoTexting();
+	void checkTextClock();
+	void shiftText(bool forward);
+	void updateText();
+	void autoTexting();
 };
 
 #endif //MAIN_WINDOW_H_

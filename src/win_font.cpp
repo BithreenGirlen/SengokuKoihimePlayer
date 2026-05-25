@@ -5,6 +5,8 @@
 
 #include "win_font.h"
 
+#pragma comment (lib,"Dwrite.lib")
+
 
 class CWinFont::Impl
 {
@@ -16,55 +18,56 @@ public:
 
 		hr = m_pDWrireFactory->GetSystemFontCollection(&m_pDWriteFontCollection);
 
-		int iRet = ::GetUserDefaultLocaleName(m_swzLocaleName, sizeof(m_swzLocaleName) / sizeof(wchar_t));
+		int iRet = ::GetUserDefaultLocaleName(m_localeName, sizeof(m_localeName) / sizeof(wchar_t));
 	}
 	~Impl()
 	{
 
 	}
 
-	const wchar_t* const GetLocaleName() const
+	const wchar_t* const getLocaleName() const
 	{
-		return m_swzLocaleName;
+		return m_localeName;
 	}
 
-	std::wstring FindLocaleFontName(const wchar_t* pwzFontFamilyName)
+	std::wstring findLocaleFontName(const wchar_t* fontFamilyName)
 	{
-		UINT uiFontFamilyIndex = 0;
-		BOOL iExist = FALSE;
-		HRESULT hr = m_pDWriteFontCollection->FindFamilyName(pwzFontFamilyName, &uiFontFamilyIndex, &iExist);
-		if (FAILED(hr) || iExist == FALSE)return std::wstring();
+		UINT fontFamilyNameIndex = 0;
+		BOOL doesExist = FALSE;
+		HRESULT hr = m_pDWriteFontCollection->FindFamilyName(fontFamilyName, &fontFamilyNameIndex, &doesExist);
+		if (FAILED(hr) || doesExist == FALSE)return {};
 
 		CComPtr<IDWriteFontFamily> pDWriteFontFamily;
-		hr = m_pDWriteFontCollection->GetFontFamily(uiFontFamilyIndex, &pDWriteFontFamily);
-		if (FAILED(hr))return std::wstring();
+		hr = m_pDWriteFontCollection->GetFontFamily(fontFamilyNameIndex, &pDWriteFontFamily);
+		if (FAILED(hr))return {};
 
 		CComPtr<IDWriteLocalizedStrings> pDWriteLocalisedStrings;
 		hr = pDWriteFontFamily->GetFamilyNames(&pDWriteLocalisedStrings);
-		if (FAILED(hr))return std::wstring();
+		if (FAILED(hr))return {};
 
-		UINT uiLocaleIndex = 0;
-		iExist = FALSE;
-		hr = pDWriteLocalisedStrings->FindLocaleName(m_swzLocaleName, &uiLocaleIndex, &iExist);
-		if (FAILED(hr))return std::wstring();
-		if (iExist == FALSE)uiLocaleIndex = 0;
+		UINT localeNameIndex = 0;
+		doesExist = FALSE;
+		hr = pDWriteLocalisedStrings->FindLocaleName(m_localeName, &localeNameIndex, &doesExist);
+		if (FAILED(hr))return {};
+		if (doesExist == FALSE)localeNameIndex = 0;
 
-		UINT32 uiStringLength = 0;
-		hr = pDWriteLocalisedStrings->GetStringLength(uiLocaleIndex, &uiStringLength);
-		if (FAILED(hr))return std::wstring();
+		UINT32 localeNameLength = 0;
+		hr = pDWriteLocalisedStrings->GetStringLength(localeNameIndex, &localeNameLength);
+		if (FAILED(hr))return {};
 
-		std::wstring wstrLocaleFontName(uiStringLength + 1ULL, '\0');
-		hr = pDWriteLocalisedStrings->GetString(uiLocaleIndex, &wstrLocaleFontName[0], static_cast<UINT32>(wstrLocaleFontName.size()));
+		std::wstring localeFontName(localeNameLength + 1UL, L'\0');
+		hr = pDWriteLocalisedStrings->GetString(localeNameIndex, &localeFontName[0], static_cast<UINT32>(localeFontName.size()));
+		localeFontName.pop_back();
 
-		return wstrLocaleFontName;
+		return localeFontName;
 	}
 
-	std::vector <std::wstring> GetSystemFontFamilyNames()
+	std::vector <std::wstring> getSystemFontFamilyNames()
 	{
 		std::vector<std::wstring> systemFontFamilyNames;
 
-		UINT32 uiFontFamilyCount = m_pDWriteFontCollection->GetFontFamilyCount();
-		for (UINT32 i = 0; i < uiFontFamilyCount; ++i)
+		UINT32 fontFamilyCount = m_pDWriteFontCollection->GetFontFamilyCount();
+		for (UINT32 i = 0; i < fontFamilyCount; ++i)
 		{
 			CComPtr<IDWriteFontFamily> pDWriteFontFamily;
 			HRESULT hr = m_pDWriteFontCollection->GetFontFamily(i, &pDWriteFontFamily);
@@ -74,46 +77,47 @@ public:
 			hr = pDWriteFontFamily->GetFamilyNames(&pDWriteLocalisedStrings);
 			if (FAILED(hr))continue;
 
-			UINT uiLocaleIndex = 0;
-			BOOL iExist = FALSE;
-			hr = pDWriteLocalisedStrings->FindLocaleName(m_swzLocaleName, &uiLocaleIndex, &iExist);
+			UINT localeNameIndex = 0;
+			BOOL doesExist = FALSE;
+			hr = pDWriteLocalisedStrings->FindLocaleName(m_localeName, &localeNameIndex, &doesExist);
 			if (FAILED(hr))continue;
-			if (iExist == FALSE)uiLocaleIndex = 0;
+			if (doesExist == FALSE)localeNameIndex = 0;
 
-			UINT32 uiStringLength = 0;
-			hr = pDWriteLocalisedStrings->GetStringLength(uiLocaleIndex, &uiStringLength);
+			UINT32 localeNameLength = 0;
+			hr = pDWriteLocalisedStrings->GetStringLength(localeNameIndex, &localeNameLength);
 			if (FAILED(hr))continue;
 
-			std::wstring wstrBuffer(uiStringLength + 1UL, L'\0');
-			hr = pDWriteLocalisedStrings->GetString(uiLocaleIndex, &wstrBuffer[0], static_cast<UINT32>(wstrBuffer.size()));
+			std::wstring fontFamilyName(localeNameLength + 1UL, L'\0');
+			hr = pDWriteLocalisedStrings->GetString(localeNameIndex, &fontFamilyName[0], static_cast<UINT32>(fontFamilyName.size()));
 			if (SUCCEEDED(hr))
 			{
-				systemFontFamilyNames.push_back(wstrBuffer);
+				fontFamilyName.pop_back();
+				systemFontFamilyNames.push_back(fontFamilyName);
 			}
 		}
 
 		return systemFontFamilyNames;
 	}
 
-	std::vector<std::wstring> FindFontFilePaths(const wchar_t* pwzFontFamilyName, bool bBold, bool bItalic)
+	std::vector<std::wstring> findFontFilePaths(const wchar_t* fontFamilyName, bool bold, bool italic)
 	{
 		std::vector<std::wstring> fontFilePaths;
-		if (pwzFontFamilyName == nullptr)return fontFilePaths;
+		if (fontFamilyName == nullptr)return fontFilePaths;
 
-		UINT uiFontFamilyIndex = 0;
-		BOOL iExist = FALSE;
-		HRESULT hr = m_pDWriteFontCollection->FindFamilyName(pwzFontFamilyName, &uiFontFamilyIndex, &iExist);
-		if (FAILED(hr) || iExist == FALSE)return fontFilePaths;
+		UINT fontFamilyNameIndex = 0;
+		BOOL doesExist = FALSE;
+		HRESULT hr = m_pDWriteFontCollection->FindFamilyName(fontFamilyName, &fontFamilyNameIndex, &doesExist);
+		if (FAILED(hr) || doesExist == FALSE)return fontFilePaths;
 
 		CComPtr<IDWriteFontFamily> pDWriteFontFamily;
-		hr = m_pDWriteFontCollection->GetFontFamily(uiFontFamilyIndex, &pDWriteFontFamily);
+		hr = m_pDWriteFontCollection->GetFontFamily(fontFamilyNameIndex, &pDWriteFontFamily);
 		if (FAILED(hr))return fontFilePaths;
 
 		CComPtr<IDWriteFont> pDWriteFont;
 		hr = pDWriteFontFamily->GetFirstMatchingFont(
-			bBold ? DWRITE_FONT_WEIGHT::DWRITE_FONT_WEIGHT_BOLD : DWRITE_FONT_WEIGHT::DWRITE_FONT_WEIGHT_REGULAR,
+			bold ? DWRITE_FONT_WEIGHT::DWRITE_FONT_WEIGHT_BOLD : DWRITE_FONT_WEIGHT::DWRITE_FONT_WEIGHT_REGULAR,
 			DWRITE_FONT_STRETCH::DWRITE_FONT_STRETCH_NORMAL,
-			bItalic ? DWRITE_FONT_STYLE::DWRITE_FONT_STYLE_ITALIC : DWRITE_FONT_STYLE::DWRITE_FONT_STYLE_NORMAL,
+			italic ? DWRITE_FONT_STYLE::DWRITE_FONT_STYLE_ITALIC : DWRITE_FONT_STYLE::DWRITE_FONT_STYLE_NORMAL,
 			&pDWriteFont
 		);
 		if (FAILED(hr))return fontFilePaths;
@@ -122,19 +126,19 @@ public:
 		hr = pDWriteFont->CreateFontFace(&pDWriteFontFace);
 		if (FAILED(hr))return fontFilePaths;
 
-		UINT32 uiFileCount = 0;
-		hr = pDWriteFontFace->GetFiles(&uiFileCount, nullptr);
+		UINT32 fontFileCount = 0;
+		hr = pDWriteFontFace->GetFiles(&fontFileCount, nullptr);
 		if (FAILED(hr))return fontFilePaths;
 
-		std::vector<CComPtr<IDWriteFontFile>> writeFontFiles(uiFileCount, nullptr);
-		hr = pDWriteFontFace->GetFiles(&uiFileCount, &*writeFontFiles.data());
+		std::vector<CComPtr<IDWriteFontFile>> writeFontFiles(fontFileCount, nullptr);
+		hr = pDWriteFontFace->GetFiles(&fontFileCount, &*writeFontFiles.data());
 		if (FAILED(hr))return fontFilePaths;
 
 		for (const auto& writeFontFile : writeFontFiles)
 		{
 			const void* pFontFileReferenceKey = nullptr;
-			UINT32 uiKeyLength = 0;
-			hr = writeFontFile->GetReferenceKey(&pFontFileReferenceKey, &uiKeyLength);
+			UINT32 fontFileReferenceKeyLength = 0;
+			hr = writeFontFile->GetReferenceKey(&pFontFileReferenceKey, &fontFileReferenceKeyLength);
 			if (FAILED(hr))continue;
 
 			CComPtr<IDWriteFontFileLoader> pDWriteFonfFileLoader;
@@ -145,15 +149,16 @@ public:
 			hr = pDWriteFonfFileLoader->QueryInterface(&pDWriteLocalFontFileLoader);
 			if (FAILED(hr))continue;
 
-			UINT32 uiPathLength = 0;
-			hr = pDWriteLocalFontFileLoader->GetFilePathLengthFromKey(pFontFileReferenceKey, uiKeyLength, &uiPathLength);
+			UINT32 filePathLength = 0;
+			hr = pDWriteLocalFontFileLoader->GetFilePathLengthFromKey(pFontFileReferenceKey, fontFileReferenceKeyLength, &filePathLength);
 			if (FAILED(hr))continue;
 
-			std::wstring wstrBuffer(uiPathLength + 1UL, L'\0');
-			hr = pDWriteLocalFontFileLoader->GetFilePathFromKey(pFontFileReferenceKey, uiKeyLength, &wstrBuffer[0], static_cast<UINT32>(wstrBuffer.size()));
+			std::wstring fontFilePath(filePathLength + 1UL, L'\0');
+			hr = pDWriteLocalFontFileLoader->GetFilePathFromKey(pFontFileReferenceKey, fontFileReferenceKeyLength, &fontFilePath[0], static_cast<UINT32>(fontFilePath.size()));
 			if (SUCCEEDED(hr))
 			{
-				fontFilePaths.push_back(wstrBuffer.data());
+				fontFilePath.pop_back();
+				fontFilePaths.push_back(fontFilePath.data());
 			}
 		}
 
@@ -163,7 +168,7 @@ private:
 	CComPtr<IDWriteFactory> m_pDWrireFactory;
 	CComPtr<IDWriteFontCollection> m_pDWriteFontCollection;
 
-	wchar_t m_swzLocaleName[LOCALE_NAME_MAX_LENGTH]{};
+	wchar_t m_localeName[LOCALE_NAME_MAX_LENGTH]{};
 };
 
 CWinFont::CWinFont()
@@ -176,22 +181,22 @@ CWinFont::~CWinFont()
 	delete m_pImpl;
 }
 
-const wchar_t* const CWinFont::GetLocaleName()
+const wchar_t* const CWinFont::getLocaleName()
 {
-	return m_pImpl->GetLocaleName();
+	return m_pImpl->getLocaleName();
 }
 
-std::wstring CWinFont::FindLocaleFontName(const wchar_t* pwzFontFamilyName)
+std::wstring CWinFont::findLocaleFontName(const wchar_t* fontFamilyName)
 {
-	return m_pImpl->FindLocaleFontName(pwzFontFamilyName);
+	return m_pImpl->findLocaleFontName(fontFamilyName);
 }
 
-std::vector<std::wstring> CWinFont::GetSystemFontFamilyNames()
+std::vector<std::wstring> CWinFont::getSystemFontFamilyNames()
 {
-	return m_pImpl->GetSystemFontFamilyNames();
+	return m_pImpl->getSystemFontFamilyNames();
 }
 
-std::vector<std::wstring> CWinFont::FindFontFilePaths(const wchar_t* pwzFontFamilyName, bool bBold, bool bItalic)
+std::vector<std::wstring> CWinFont::findFontFilePaths(const wchar_t* fontFamilyName, bool bold, bool italic)
 {
-	return m_pImpl->FindFontFilePaths(pwzFontFamilyName, bBold, bItalic);
+	return m_pImpl->findFontFilePaths(fontFamilyName, bold, italic);
 }

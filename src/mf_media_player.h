@@ -9,6 +9,7 @@ class CMfMediaPlayerNotify : public IMFMediaEngineNotify
 public:
 	CMfMediaPlayerNotify(void* pMediaPlayer);
 	~CMfMediaPlayerNotify();
+
 	STDMETHODIMP QueryInterface(REFIID riid, void** ppv)
 	{
 		if (riid == __uuidof(IMFMediaEngineNotify))
@@ -31,7 +32,7 @@ public:
 		}
 		else
 		{
-			OnMediaEngineEvent(Event, param1, param2);
+			onMediaEngineEvent(Event, param1, param2);
 		}
 		return S_OK;
 	}
@@ -45,52 +46,63 @@ public:
 
 private:
 	LONG m_lRef = 0;
-	void* m_pPlayer = nullptr;
+	void* m_pMediaPlayer = nullptr;
 
-	void OnMediaEngineEvent(DWORD Event, DWORD_PTR param1, DWORD param2);
+	void onMediaEngineEvent(DWORD Event, DWORD_PTR param1, DWORD param2);
 };
 
 class CMfMediaPlayer
 {
 public:
 	CMfMediaPlayer();
-	~CMfMediaPlayer();
+	virtual ~CMfMediaPlayer();
 
-	bool Play(const wchar_t* pwzFilePath);
-	BOOL SwitchLoop();
-	BOOL SwitchMute();
-	BOOL SwitchPause();
-	double GetCurrentVolume();
-	double GetCurrentRate();
-	long long GetCurrentTimeInMilliSeconds();
-	bool SetCurrentVolume(double dbVolume);
-	bool SetCurrentRate(double dbRate);
-	bool IsEnded();
+	bool play(const wchar_t* filePath);
 
-	virtual bool SetPlaybackWindow(HWND hWnd, UINT uMsg = 0);
-	bool GetVideoSize(DWORD* dwWidth, DWORD* dwHeight);
-	void SetDisplayArea(const RECT absoluteRect);
-	virtual bool ResizeBuffer();
+	bool setLoop(bool looped);
+	bool isLooped();
 
-	HWND GetRetHwnd()const { return m_hRetWnd; }
-	UINT GetRetMsg() const { return m_uRetMsg; };
+	bool setMute(bool muted);
+	bool isMuted();
+
+	bool setPause(bool paused);
+	bool isPaused();
+
+	bool isEnded();
+
+	/// @brief Step one frame forward/backward
+	bool frameStep(bool forward);
+
+	bool setCurrentVolume(double dbVolume);
+	double getCurrentVolume();
+
+	bool setCurrentRate(double dbRate);
+	double getCurrentRate();
+
+	long long getCurrentTimeInMilliSeconds();
+
+	/// @brief Set window and message code to receive event notification.
+	virtual bool setPlaybackWindow(HWND hWnd, UINT uMsg = 0);
+	bool getVideoSize(DWORD* dwWidth, DWORD* dwHeight);
+	void setDisplayArea(const RECT absoluteRect);
+	virtual bool resizeBuffer();
+
+	HWND getRetHwnd()const { return m_hRetWnd; }
+	UINT getRetMsg() const { return m_uRetMsg; }
 protected:
 	HWND m_hRetWnd = nullptr;
 	UINT m_uRetMsg = 0;
 
 	HRESULT m_hrComInit = E_FAIL;
 	HRESULT m_hrMfStart = E_FAIL;
-	CMfMediaPlayerNotify* m_pmfNotify = nullptr;
-	IMFMediaEngineEx* m_pmfEngineEx = nullptr;
-	IMFAttributes* m_pMfAttributes = nullptr;
 
-	BOOL m_iLoop = FALSE;
-	BOOL m_iMute = FALSE;
-	BOOL m_iPause = FALSE;
+	CMfMediaPlayerNotify* m_pMfNotify = nullptr;
+	IMFMediaEngineEx* m_pMfEngineEx = nullptr;
+	IMFAttributes* m_pMfAttributes = nullptr;
 
 	MFVideoNormalizedRect m_normalisedRect{};
 
-	void WorkOutNormalisedRect(const RECT absoluteRect, MFVideoNormalizedRect* normaisedRect);
+	void workOutNormalisedRect(const RECT absoluteRect, MFVideoNormalizedRect* normalisedRect);
 };
 
 #endif // !MF_MEDIA_PLAYER_H_

@@ -7,8 +7,8 @@ namespace adv
 {
 	struct TextDatum
 	{
-		std::wstring wstrText;
-		std::wstring wstrVoicePath;
+		std::wstring message;
+		std::wstring voiceFilePath;
 	};
 
 	struct SceneDatum

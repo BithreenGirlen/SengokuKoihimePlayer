@@ -13,18 +13,18 @@
       <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
       <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
     </Filter>
+    <Filter Include="Header Files\native-ui">
+      <UniqueIdentifier>{a6119b6d-289a-495e-a191-f760ca42dd25}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\native-ui">
+      <UniqueIdentifier>{754129aa-b451-42b4-95ee-3998010f1da6}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\src\framework.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\resource\Resource.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\src\main_window.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\media_setting_dialogue.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\src\win_dialogue.h">
@@ -66,20 +66,29 @@
     <ClInclude Include="..\src\sngk_scene_crafter.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\dialogue_controls.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\dialogue_template.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\font_setting_dialogue.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\win_font.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="pch.h">
       <Filter>Resource Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\native-ui\dialogue_controls.h">
+      <Filter>Header Files\native-ui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\native-ui\dialogue_template.h">
+      <Filter>Header Files\native-ui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\native-ui\font_setting_dialogue.h">
+      <Filter>Header Files\native-ui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\native-ui\media_setting_dialogue.h">
+      <Filter>Header Files\native-ui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\native-ui\window_menu.h">
+      <Filter>Header Files\native-ui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\path_utility.h">
+      <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -87,9 +96,6 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\src\main_window.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\media_setting_dialogue.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\src\win_dialogue.cpp">
@@ -125,20 +131,26 @@
     <ClCompile Include="..\src\sngk_scene_crafter.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\dialogue_controls.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\dialogue_template.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\font_setting_dialogue.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\win_font.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="pch.cpp">
       <Filter>Resource Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\native-ui\dialogue_controls.cpp">
+      <Filter>Source Files\native-ui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\native-ui\dialogue_template.cpp">
+      <Filter>Source Files\native-ui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\native-ui\font_setting_dialogue.cpp">
+      <Filter>Source Files\native-ui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\native-ui\media_setting_dialogue.cpp">
+      <Filter>Source Files\native-ui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\native-ui\window_menu.cpp">
+      <Filter>Source Files\native-ui</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -150,5 +162,10 @@
     <Image Include="..\src\resource\icon\10535006.ico">
       <Filter>Resource Files</Filter>
     </Image>
+  </ItemGroup>
+  <ItemGroup>
+    <Manifest Include="dpiAwareness.manifest">
+      <Filter>Resource Files</Filter>
+    </Manifest>
   </ItemGroup>
 </Project>

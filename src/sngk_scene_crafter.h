@@ -18,25 +18,26 @@ public:
 	CSngkSceneCrafter(ID2D1DeviceContext* pD2d1DeviceContext);
 	~CSngkSceneCrafter();
 
-	bool LoadScenario(const wchar_t* pwzStillFolderPath);
+	bool loadScenario(const wchar_t* stillFolderPath);
+	bool hasScenarioData() const noexcept;
 
-	void GetCurrentImageSize(unsigned int* uiWidth, unsigned int* uiHeight);
-	void GetLargestImageSize(unsigned int* uiWidth, unsigned int* uiHeight);
+	void getCurrentImageSize(unsigned int* uiWidth, unsigned int* uiHeight);
+	void getLargestImageSize(unsigned int* uiWidth, unsigned int* uiHeight);
 
-	void ShiftScene(bool bForward);
-	bool HasReachedLastScene();
+	void shiftScene(bool forward);
+	bool hasReachedLastScene() const noexcept;
 
-	ID2D1Bitmap* GetCurrentImage();
-	std::wstring GetCurrentFormattedText();
-	const wchar_t* GetCurrentVoiceFilePath();
+	ID2D1Bitmap* getCurrentImage();
+	const std::wstring& getCurrentFormattedText();
+	const wchar_t* getCurrentVoiceFilePath();
 
-	bool TogglePause();
-	bool IsPaused() const;
+	void setPause(bool paused);
+	bool isPaused() const noexcept;
 
-	void ShiftAnimation();
+	void shiftAnimation();
 
-	void UpdateAnimationInterval(bool bFaster);
-	void ResetAnimationInterval();
+	void updateAnimationInterval(bool faster);
+	void resetAnimationInterval();
 private:
 	enum Constants
 	{
@@ -62,15 +63,17 @@ private:
 	std::vector<adv::SceneDatum> m_sceneData;
 	size_t m_nSceneIndex = 0;
 
-	bool m_bPaused = false;
+	std::wstring m_formattedText;
 
-	void ClearScenarioData();
-	bool LoadImages(const wchar_t* pwzStillFolderPath);
+	bool m_isPaused = false;
+
+	void clearScenarioData();
+	bool loadImages(const wchar_t* stillFolderPath);
 
 	void ImportImage(const SPortion& sPortion, UINT uiStride, std::vector<CComPtr<ID2D1Bitmap>>& bitmaps);
 
 	CWinClock m_animationClock;
-	int m_iFps = Constants::kDefaultFps;
+	int m_fps = Constants::kDefaultFps;
 };
 
 #endif // !SNGK_SCENE_CRAFTER_H_

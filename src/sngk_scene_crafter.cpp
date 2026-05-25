@@ -3,6 +3,7 @@
 #include "sngk_scene_crafter.h"
 
 #include "sngk.h"
+#include "path_utility.h"
 #include "text_utility.h"
 #include "win_filesystem.h"
 #include "win_image.h"
@@ -18,25 +19,30 @@ CSngkSceneCrafter::~CSngkSceneCrafter()
 
 }
 
-bool CSngkSceneCrafter::LoadScenario(const wchar_t* pwzStillFolderPath)
+bool CSngkSceneCrafter::loadScenario(const wchar_t* stillFolderPath)
 {
 	if (m_pStoredD2d1DeviceContext == nullptr)return false;
 
-	ClearScenarioData();
+	clearScenarioData();
 
-	bool bRet = LoadImages(pwzStillFolderPath);
+	bool bRet = loadImages(stillFolderPath);
 	if (!bRet)return false;
 
-	std::vector<std::wstring> wstrNames;
-	bRet = sngk::SearchAndLoadScenarioFile(pwzStillFolderPath, m_textData, wstrNames, m_sceneData);
-	if (wstrNames.size() > m_images.size())return false;
+	std::vector<std::wstring> animationNames;
+	bRet = sngk::SearchAndLoadScenarioFile(stillFolderPath, m_textData, animationNames, m_sceneData);
+	if (animationNames.size() > m_images.size())return false;
 
-	m_animationClock.Restart();
+	m_animationClock.restart();
 
 	return bRet;
 }
 
-void CSngkSceneCrafter::GetCurrentImageSize(unsigned int* uiWidth, unsigned int* uiHeight)
+bool CSngkSceneCrafter::hasScenarioData() const noexcept
+{
+	return !m_sceneData.empty();
+}
+
+void CSngkSceneCrafter::getCurrentImageSize(unsigned int* uiWidth, unsigned int* uiHeight)
 {
 	if (m_nImageIndex < m_images.size() || m_nAnimationIndex < m_images[m_nImageIndex].size())
 	{
@@ -46,7 +52,7 @@ void CSngkSceneCrafter::GetCurrentImageSize(unsigned int* uiWidth, unsigned int*
 	}
 }
 
-void CSngkSceneCrafter::GetLargestImageSize(unsigned int* uiWidth, unsigned int* uiHeight)
+void CSngkSceneCrafter::getLargestImageSize(unsigned int* uiWidth, unsigned int* uiHeight)
 {
 	unsigned int uiMaxWidth = 0;
 	unsigned int uiMaxHeight = 0;
@@ -66,11 +72,11 @@ void CSngkSceneCrafter::GetLargestImageSize(unsigned int* uiWidth, unsigned int*
 	if (uiHeight != nullptr)*uiHeight = uiMaxHeight;
 }
 /*場面移行*/
-void CSngkSceneCrafter::ShiftScene(bool bForward)
+void CSngkSceneCrafter::shiftScene(bool forward)
 {
 	if (m_sceneData.empty())return;
 
-	if (bForward)
+	if (forward)
 	{
 		if (++m_nSceneIndex >= m_sceneData.size())
 		{
@@ -86,12 +92,12 @@ void CSngkSceneCrafter::ShiftScene(bool bForward)
 	}
 }
 /*最終場面是否*/
-bool CSngkSceneCrafter::HasReachedLastScene()
+bool CSngkSceneCrafter::hasReachedLastScene() const noexcept
 {
 	return m_nSceneIndex == m_sceneData.size() - 1;
 }
 /*現在の画像受け渡し*/
-ID2D1Bitmap* CSngkSceneCrafter::GetCurrentImage()
+ID2D1Bitmap* CSngkSceneCrafter::getCurrentImage()
 {
 	if (m_nSceneIndex < m_sceneData.size())
 	{
@@ -104,13 +110,13 @@ ID2D1Bitmap* CSngkSceneCrafter::GetCurrentImage()
 			}
 
 			ID2D1Bitmap* p = m_images[m_nImageIndex][m_nAnimationIndex];
-			if (!m_bPaused)
+			if (!m_isPaused)
 			{
-				float fElapsed = m_animationClock.GetElapsedTime();
-				if (::isgreaterequal(fElapsed, 1000 / static_cast<float>(m_iFps)))
+				float fElapsed = m_animationClock.getElapsedTime();
+				if (::isgreaterequal(fElapsed, 1 / static_cast<float>(m_fps)))
 				{
-					ShiftAnimation();
-					m_animationClock.Restart();
+					shiftAnimation();
+					m_animationClock.restart();
 				}
 			}
 
@@ -121,70 +127,70 @@ ID2D1Bitmap* CSngkSceneCrafter::GetCurrentImage()
 	return nullptr;
 }
 
-std::wstring CSngkSceneCrafter::GetCurrentFormattedText()
+const std::wstring& CSngkSceneCrafter::getCurrentFormattedText()
 {
-	std::wstring wstr;
+	m_formattedText.clear();
+
 	if (m_nSceneIndex < m_sceneData.size())
 	{
-		wstr.reserve(128);
 		size_t nTextIndex = m_sceneData[m_nSceneIndex].nTextIndex;
-
 		if (nTextIndex < m_textData.size())
 		{
-			wstr = m_textData[nTextIndex].wstrText;
-			if (!wstr.empty() && wstr.back() != L'\n')wstr.push_back(L'\n');
-			wstr += std::to_wstring(nTextIndex + 1) + L"/" + std::to_wstring(m_textData.size());
+			m_formattedText.assign(m_textData[nTextIndex].message);
+			if (!m_formattedText.empty() && m_formattedText.back() != L'\n')m_formattedText.push_back(L'\n');
+			wchar_t buffer[64]{};
+			::swprintf_s(buffer, L"%zu/%zu", nTextIndex + 1, m_textData.size());
+			m_formattedText += buffer;
 		}
 	}
 
-	return wstr;
+	return m_formattedText;
 }
 
-const wchar_t* CSngkSceneCrafter::GetCurrentVoiceFilePath()
+const wchar_t* CSngkSceneCrafter::getCurrentVoiceFilePath()
 {
 	if (m_nSceneIndex < m_sceneData.size())
 	{
 		size_t nTextIndex = m_sceneData[m_nSceneIndex].nTextIndex;
 		if (nTextIndex < m_textData.size())
 		{
-			return m_textData[nTextIndex].wstrVoicePath.c_str();
+			return m_textData[nTextIndex].voiceFilePath.c_str();
 		}
 	}
 
 	return nullptr;
 }
-/*停止切り替え*/
-bool CSngkSceneCrafter::TogglePause()
-{
-	m_animationClock.Restart();
 
-	m_bPaused ^= true;
-	return m_bPaused;
+void CSngkSceneCrafter::setPause(bool paused)
+{
+	m_animationClock.restart();
+
+	m_isPaused = paused;
 }
 
-bool CSngkSceneCrafter::IsPaused() const
+bool CSngkSceneCrafter::isPaused() const noexcept
 {
-	return m_bPaused;
+	return m_isPaused;
 }
 /*コマ送り加速・減速*/
-void CSngkSceneCrafter::UpdateAnimationInterval(bool bFaster)
+void CSngkSceneCrafter::updateAnimationInterval(bool faster)
 {
-	if (bFaster)
+	if (faster)
 	{
-		++m_iFps;
+		++m_fps;
 	}
 	else
 	{
-		if (--m_iFps <= 1)m_iFps = 1;
+		if (--m_fps <= 1)m_fps = 1;
 	}
 }
 /*速度初期化*/
-void CSngkSceneCrafter::ResetAnimationInterval()
+void CSngkSceneCrafter::resetAnimationInterval()
 {
-	m_iFps = Constants::kDefaultFps;
+	m_fps = Constants::kDefaultFps;
 }
 /*消去*/
-void CSngkSceneCrafter::ClearScenarioData()
+void CSngkSceneCrafter::clearScenarioData()
 {
 	m_textData.clear();
 
@@ -195,10 +201,10 @@ void CSngkSceneCrafter::ClearScenarioData()
 	m_nImageIndex = 0;
 	m_nAnimationIndex = 0;
 
-	ResetAnimationInterval();
+	resetAnimationInterval();
 }
 
-bool CSngkSceneCrafter::LoadImages(const wchar_t* pwzStillFolderPath)
+bool CSngkSceneCrafter::loadImages(const wchar_t* pwzStillFolderPath)
 {
 	std::vector<std::wstring> imageFilePaths;
 	bool bRet = win_filesystem::CreateFilePathList(pwzStillFolderPath, L".jpg", imageFilePaths);
@@ -223,7 +229,7 @@ bool CSngkSceneCrafter::LoadImages(const wchar_t* pwzStillFolderPath)
 
 	for (const auto& imageFilePath : imageFilePaths)
 	{
-		std::wstring wstrFileName = text_utility::ExtractFileName(imageFilePath);
+		std::wstring_view wstrFileName = path_utility::ExtractFileNameWithoutExtension(imageFilePath);
 
 		/*分割画像は予め拡大して大きさを揃える。*/
 		const auto GetImageScale = [&imageFilePath]()
@@ -240,7 +246,7 @@ bool CSngkSceneCrafter::LoadImages(const wchar_t* pwzStillFolderPath)
 
 		float fImageScale = GetImageScale();
 
-		SImageFrame sWhole{};
+		win_image::SImageFrame sWhole{};
 		bool bRet = win_image::LoadImageToMemory(imageFilePath.c_str(), &sWhole, fImageScale);
 		if (!bRet)continue;
 
@@ -256,15 +262,15 @@ bool CSngkSceneCrafter::LoadImages(const wchar_t* pwzStillFolderPath)
 
 			if (wstrFileName == L"wait1")
 			{
-				ImportImage(sPortion, sWhole.iStride, wait1Bitmaps);
+				ImportImage(sPortion, sWhole.uiStride, wait1Bitmaps);
 			}
 			else if (wstrFileName == L"wait2")
 			{
-				ImportImage(sPortion, sWhole.iStride, wait2Bitmaps);
+				ImportImage(sPortion, sWhole.uiStride, wait2Bitmaps);
 			}
 			else if (wstrFileName == L"fin")
 			{
-				ImportImage(sPortion, sWhole.iStride, finBitmaps);
+				ImportImage(sPortion, sWhole.uiStride, finBitmaps);
 			}
 		}
 		else
@@ -285,7 +291,7 @@ bool CSngkSceneCrafter::LoadImages(const wchar_t* pwzStillFolderPath)
 			SPortion sPortion{};
 			sPortion.uiWidth = sWhole.uiWidth / uiDivX;
 			sPortion.uiHeight = sWhole.uiHeight / uiDivY;
-			INT iStride = sWhole.iStride / uiDivX;
+			INT iStride = sWhole.uiStride / uiDivX;
 
 			/*
 			* 次の順序で分割:
@@ -303,9 +309,9 @@ bool CSngkSceneCrafter::LoadImages(const wchar_t* pwzStillFolderPath)
 							/*白色画像なので打ち切り*/
 							if (bResidual && nPortionX >= 1 && nPortionY >= 1)return;
 
-							sPortion.pData = sWhole.pixels.data() + (nPortionX * iStride) + (nPortionY * sWhole.iStride * sPortion.uiHeight);
+							sPortion.pData = sWhole.pixels.data() + (nPortionX * iStride) + (nPortionY * sWhole.uiStride * sPortion.uiHeight);
 
-							ImportImage(sPortion, sWhole.iStride, bitmap);
+							ImportImage(sPortion, sWhole.uiStride, bitmap);
 						}
 					}
 				};
@@ -320,7 +326,7 @@ bool CSngkSceneCrafter::LoadImages(const wchar_t* pwzStillFolderPath)
 	if (!anim2Bitmaps.empty())m_images.push_back(std::move(anim2Bitmaps));
 	if (!finBitmaps.empty())m_images.push_back(std::move(finBitmaps));
 
-	m_animationClock.Restart();
+	m_animationClock.restart();
 
 	return !m_images.empty();
 }
@@ -345,7 +351,7 @@ void CSngkSceneCrafter::ImportImage(const SPortion& sPortion, UINT uiStride, std
 	}
 }
 /*コマ送り*/
-void CSngkSceneCrafter::ShiftAnimation()
+void CSngkSceneCrafter::shiftAnimation()
 {
 	if (m_nImageIndex < m_images.size())
 	{
