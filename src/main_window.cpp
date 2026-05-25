@@ -219,35 +219,48 @@ LRESULT CMainWindow::onPaint()
 	PAINTSTRUCT ps{};
 	HDC hDC = ::BeginPaint(m_hWnd, &ps);
 
-	if (m_pD2ImageDrawer == nullptr || m_pD2TextWriter == nullptr || m_pViewManager == nullptr || m_pSngkSceneCrafter == nullptr)
+	if (m_pD2ImageDrawer == nullptr || m_pD2TextWriter == nullptr || m_pViewManager == nullptr || m_pSngkSceneCrafter == nullptr || !m_pSngkSceneCrafter->hasScenarioData())
 	{
 		::EndPaint(m_hWnd, &ps);
 		return 0;
 	}
 
-	bool bRet = false;
-
 	m_pD2ImageDrawer->clear();
 
-	ID2D1Bitmap* pImage = m_pSngkSceneCrafter->getCurrentImage();
-	if (pImage != nullptr)
+	ID2D1Bitmap* pD2d1Bitmap = m_pSngkSceneCrafter->getCurrentImage();
+	if (pD2d1Bitmap != nullptr)
 	{
-		bRet = m_pD2ImageDrawer->draw(pImage, { m_pViewManager->getOffsetX(), m_pViewManager->getOffsetY() }, m_pViewManager->getScale());
+		RECT rc;
+		::GetClientRect(m_hWnd, &rc);
+
+		int targetWidth = rc.right - rc.left;
+		int targetHeight = rc.bottom - rc.top;
+
+		D2D1_SIZE_U srcSize = pD2d1Bitmap->GetPixelSize();
+
+		const float fScale = m_pViewManager->getScale();
+		const float fX = (srcSize.width * fScale - targetWidth) / 2 + m_pViewManager->offsetX() / 2;
+		const float fY = (srcSize.height * fScale - targetHeight) / 2 + m_pViewManager->offsetY() / 2;
+
+		const D2D1_MATRIX_3X2_F scaleMatrix = D2D1::Matrix3x2F::Scale(fScale, fScale);
+		const D2D1_MATRIX_3X2_F translateMatrix = D2D1::Matrix3x2F::Translation(-fX, -fY);
+		const D2D1_MATRIX_3X2_F transformMatrix = scaleMatrix * translateMatrix;
+
+		m_pD2ImageDrawer->getD2DeviceContext()->SetTransform(transformMatrix);
+		m_pD2ImageDrawer->draw(pD2d1Bitmap);
+		m_pD2ImageDrawer->getD2DeviceContext()->SetTransform(D2D1::Matrix3x2F::Identity());
 	}
 
-	if (bRet)
+	if (!m_isTextHidden)
 	{
-		if (!m_isTextHidden)
-		{
-			const std::wstring& wstr = m_pSngkSceneCrafter->getCurrentFormattedText();
-			m_pD2TextWriter->outLinedDraw(wstr.c_str(), static_cast<unsigned long>(wstr.size()));
-		}
-		m_pD2ImageDrawer->display();
-
-		updateScreen();
-
-		checkTextClock();
+		const std::wstring& wstr = m_pSngkSceneCrafter->getCurrentFormattedText();
+		m_pD2TextWriter->outLinedDraw(wstr.c_str(), static_cast<unsigned long>(wstr.size()));
 	}
+	m_pD2ImageDrawer->display();
+
+	updateScreen();
+
+	checkTextClock();
 
 	::EndPaint(m_hWnd, &ps);
 
@@ -472,7 +485,7 @@ LRESULT CMainWindow::onMButtonUp(WPARAM wParam, LPARAM lParam)
 	{
 		if (m_pViewManager != nullptr)
 		{
-			m_pViewManager->resetZoom();
+			m_pViewManager->resetScale();
 		}
 
 		if (m_pSngkSceneCrafter != nullptr)
@@ -674,7 +687,7 @@ void CMainWindow::setupScenario(const std::wstring& stillFolderPath)
 		if (m_pViewManager != nullptr)
 		{
 			m_pViewManager->setBaseSize(uiWidth, uiHeight);
-			m_pViewManager->resetZoom();
+			m_pViewManager->resetScale();
 		}
 
 		updateText();

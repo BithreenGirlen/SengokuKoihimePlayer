@@ -4,7 +4,7 @@
 
 
 CViewManager::CViewManager(HWND hWnd)
-	:m_hRetWnd(hWnd)
+	:m_hRenderTargetWnd(hWnd)
 {
 
 }
@@ -13,19 +13,36 @@ CViewManager::~CViewManager()
 {
 
 }
-/*基準長設定*/
-void CViewManager::setBaseSize(unsigned int uiWidth, unsigned int uiHeight)
+
+void CViewManager::setBaseSize(unsigned int width, unsigned int height)
 {
-	m_uiBaseWidth = uiWidth;
-	m_uiBaseHeight = uiHeight;
+	m_baseWidth = width;
+	m_baseHeight = height;
+
 	workOutDefaultScale();
 }
-/*尺度変更*/
-void CViewManager::rescale(bool toUpscale)
+
+void CViewManager::getBaseSize(unsigned int* width, unsigned int* height)
+{
+	if (width != nullptr)*width = m_baseWidth;
+	if (height != nullptr)*height = m_baseHeight;
+}
+
+void CViewManager::setScale(float fScale)
+{
+	m_fScale = fScale;
+}
+
+float CViewManager::getScale() const
+{
+	return m_fScale;
+}
+
+void CViewManager::rescale(bool upscale)
 {
 	constexpr float fScaleMin = 0.25f;
 	constexpr float fScalePortion = 0.05f;
-	if (toUpscale)
+	if (upscale)
 	{
 		m_fScale += fScalePortion;
 	}
@@ -34,18 +51,31 @@ void CViewManager::rescale(bool toUpscale)
 		m_fScale -= fScalePortion;
 		if (m_fScale < fScaleMin) m_fScale = fScaleMin;
 	}
+
 	resizeWindow();
 }
-/*原点位置移動*/
+
 void CViewManager::addOffset(int iX, int iY)
 {
-	m_fOffsetX += iX;
-	m_fOffsetY += iY;
+	m_fOffsetX += iX * m_fScale;
+	m_fOffsetY += iY * m_fScale;
+
 	adjustOffset();
 	requestRedraw();
 }
-/*原寸表示*/
-void CViewManager::resetZoom()
+
+float CViewManager::offsetX() const
+{
+	return m_fOffsetX;
+}
+
+float CViewManager::offsetY() const
+{
+	return m_fOffsetY;
+}
+
+/* 原寸表示 */
+void CViewManager::resetScale()
 {
 	m_fScale = m_fDefaultScale;
 	m_fOffsetX = 0;
@@ -53,97 +83,125 @@ void CViewManager::resetZoom()
 
 	resizeWindow();
 }
-/*表示形式変更通知*/
+/* 表示形式変更通知 */
 void CViewManager::onStyleChanged()
 {
 	resizeWindow();
 }
-/*基準尺度算出*/
+/* 基準尺度算出 */
 void CViewManager::workOutDefaultScale()
 {
-	/* 基準長がモニタ解像度より大きい場合には予め縮小する */
+	/* 基準寸法がモニタ解像度より大きい場合には予め縮小する */
 
-	unsigned int uiMonitorWidth = static_cast<unsigned int>(::GetSystemMetrics(SM_CXSCREEN));
-	unsigned int uiMonitorHeight = static_cast<unsigned int>(::GetSystemMetrics(SM_CYSCREEN));
-	if (m_uiBaseWidth > uiMonitorWidth || m_uiBaseHeight > uiMonitorHeight)
+	unsigned int monitorWidth = UINT_MAX;
+	unsigned int monitorHeight = UINT_MAX;
+	HMONITOR hMonitor = ::MonitorFromWindow(m_hRenderTargetWnd, MONITOR_DEFAULTTONEAREST);
+	if (hMonitor != nullptr)
 	{
-		if (uiMonitorWidth > uiMonitorHeight)
+		MONITORINFO monitorInfo{ sizeof(MONITORINFO) };
+		BOOL iRet = ::GetMonitorInfoW(hMonitor, &monitorInfo);
+		if (iRet)
 		{
-			m_fDefaultScale = static_cast<float>(uiMonitorHeight) / m_uiBaseHeight;
+			monitorWidth = monitorInfo.rcMonitor.right - monitorInfo.rcMonitor.left;
+			monitorHeight = monitorInfo.rcMonitor.bottom - monitorInfo.rcMonitor.top;
 		}
-		else
-		{
-			m_fDefaultScale = static_cast<float>(uiMonitorWidth) / m_uiBaseWidth;
-		}
+	}
+	if (m_baseWidth > monitorWidth || m_baseHeight > monitorHeight)
+	{
+		float scaleX = m_fDefaultScale = static_cast<float>(monitorWidth) / m_baseWidth;
+		float scaleY = m_fDefaultScale = static_cast<float>(monitorHeight) / m_baseHeight;
+
+		m_fDefaultScale = monitorWidth > monitorHeight ? scaleY : scaleX;
 	}
 	else
 	{
-		m_fDefaultScale = ::GetDpiForWindow(m_hRetWnd) / 96.f;
+		m_fDefaultScale = ::GetDpiForWindow(m_hRenderTargetWnd) / 96.f;
 	}
 
 	m_fScale = m_fDefaultScale;
 }
-/*窓寸法調整*/
+void CViewManager::adjustOffset()
+{
+	if (m_hRenderTargetWnd != nullptr)
+	{
+		int scaledWidth = static_cast<int>(m_baseWidth * m_fScale);
+		int scaledHeight = static_cast<int>(m_baseHeight * m_fScale);
+
+		RECT rc;
+		::GetClientRect(m_hRenderTargetWnd, &rc);
+
+		int targetWidth = rc.right - rc.left;
+		int targetHeight = rc.bottom - rc.top;
+
+#if 0 /* Left-top corner scaling */
+		int offsetXMax = scaledWidth > targetWidth ? static_cast<int>((scaledWidth - targetWidth) / m_fScale) : 0;
+		int offsetYMax = scaledHeight > targetHeight ? static_cast<int>((scaledHeight - targetHeight) / m_fScale) : 0;
+
+		if (m_fOffsetX < 0) m_fOffsetX = 0;
+		if (m_fOffsetY < 0) m_fOffsetY = 0;
+
+		if (m_fOffsetX > offsetXMax)m_fOffsetX = static_cast<float>(offsetXMax);
+		if (m_fOffsetY > offsetYMax)m_fOffsetY = static_cast<float>(offsetYMax);
+#else /* Centre scaling */
+		float fMaxOffsetX = static_cast<float>(scaledWidth - targetWidth);
+		float fMaxOffsetY = static_cast<float>(scaledHeight - targetHeight);
+
+		m_fOffsetX = (m_fOffsetX < -fMaxOffsetX ? -fMaxOffsetX : m_fOffsetX);
+		m_fOffsetY = (m_fOffsetY < -fMaxOffsetY ? -fMaxOffsetY : m_fOffsetY);
+
+		m_fOffsetX = (m_fOffsetX > fMaxOffsetX ? fMaxOffsetX : m_fOffsetX);
+		m_fOffsetY = (m_fOffsetY > fMaxOffsetY ? fMaxOffsetY : m_fOffsetY);
+#endif
+	}
+}
+/* 窓寸法調整 */
 void CViewManager::resizeWindow()
 {
-	if (m_hRetWnd != nullptr)
+	if (m_hRenderTargetWnd != nullptr)
 	{
-		const auto IsWidowBarHidden = [this]()
+		RECT rect;
+		::GetWindowRect(m_hRenderTargetWnd, &rect);
+		int windowWidth = static_cast<int>(m_baseWidth * m_fScale);
+		int windowHeight = static_cast<int>(m_baseHeight * m_fScale);
+
+		int monitorWidth = INT_MAX;
+		int monitorHeight = INT_MAX;
+		HMONITOR hMonitor = ::MonitorFromWindow(m_hRenderTargetWnd, MONITOR_DEFAULTTONEAREST);
+		if (hMonitor != nullptr)
+		{
+			MONITORINFO monitorInfo{ sizeof(MONITORINFO) };
+			BOOL iRet = ::GetMonitorInfoW(hMonitor, &monitorInfo);
+			if (iRet)
+			{
+				monitorWidth = monitorInfo.rcMonitor.right - monitorInfo.rcMonitor.left;
+				monitorHeight = monitorInfo.rcMonitor.bottom - monitorInfo.rcMonitor.top;
+			}
+		}
+
+		windowWidth = windowWidth > monitorWidth ? monitorWidth : windowWidth;
+		windowHeight = windowHeight > monitorHeight ? monitorHeight : windowHeight;
+
+		rect.right = windowWidth + rect.left;
+		rect.bottom = windowHeight + rect.top;
+
+		LONG lStyle = ::GetWindowLong(m_hRenderTargetWnd, GWL_STYLE);
+		const auto IsWidowBarHidden = [&lStyle]()
 			-> bool
 			{
-				if (m_hRetWnd != nullptr)
-				{
-					LONG lStyle = ::GetWindowLong(m_hRetWnd, GWL_STYLE);
-					return !((lStyle & WS_CAPTION) && (lStyle & WS_SYSMENU));
-				}
-				return false;
+				return !((lStyle & WS_CAPTION) && (lStyle & WS_SYSMENU));
 			};
-
-		RECT rect;
-		::GetWindowRect(m_hRetWnd, &rect);
-		int iX = static_cast<int>(m_uiBaseWidth * m_fScale);
-		int iY = static_cast<int>(m_uiBaseHeight * m_fScale);
-
-		rect.right = iX + rect.left;
-		rect.bottom = iY + rect.top;
-		LONG lStyle = ::GetWindowLong(m_hRetWnd, GWL_STYLE);
-		bool bBarHidden = IsWidowBarHidden();
-		::AdjustWindowRect(&rect, lStyle, bBarHidden ? FALSE : TRUE);
-		::SetWindowPos(m_hRetWnd, HWND_TOP, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top, SWP_NOMOVE | SWP_NOZORDER);
+		::AdjustWindowRect(&rect, lStyle, IsWidowBarHidden() ? FALSE : TRUE);
+		::SetWindowPos(m_hRenderTargetWnd, HWND_TOP, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top, SWP_NOMOVE | SWP_NOZORDER);
 	}
 
 	adjustOffset();
 	requestRedraw();
 }
-/*原点位置調整*/
-void CViewManager::adjustOffset()
-{
-	if (m_hRetWnd != nullptr)
-	{
-		int iScaledWidth = static_cast<int>(m_uiBaseWidth * m_fScale);
-		int iScaledHeight = static_cast<int>(m_uiBaseHeight * m_fScale);
-
-		RECT rc;
-		::GetClientRect(m_hRetWnd, &rc);
-
-		int iClientWidth = rc.right - rc.left;
-		int iClientHeight = rc.bottom - rc.top;
-
-		int iXOffsetMax = iScaledWidth > iClientWidth ? static_cast<int>((iScaledWidth - iClientWidth) / m_fScale) : 0;
-		int iYOffsetMax = iScaledHeight > iClientHeight ? static_cast<int>((iScaledHeight - iClientHeight) / m_fScale) : 0;
-
-		if (m_fOffsetX < 0) m_fOffsetX = 0;
-		if (m_fOffsetY < 0) m_fOffsetY = 0;
-
-		if (m_fOffsetX > iXOffsetMax)m_fOffsetX = static_cast<float>(iXOffsetMax);
-		if (m_fOffsetY > iYOffsetMax)m_fOffsetY = static_cast<float>(iYOffsetMax);
-	}
-}
-/*再描画要求*/
+/* 再描画要求 */
 void CViewManager::requestRedraw() const
 {
-	if (m_hRetWnd != nullptr)
+	if (m_hRenderTargetWnd != nullptr)
 	{
-		::InvalidateRect(m_hRetWnd, nullptr, FALSE);
+		::InvalidateRect(m_hRenderTargetWnd, nullptr, FALSE);
 	}
 }

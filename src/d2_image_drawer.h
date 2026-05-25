@@ -15,9 +15,9 @@ public:
 
 	void clear(const D2D1::ColorF& colour = D2D1::ColorF(255, 255, 255, 255));
 	/// @brief Draw CPU pixel array
-	bool draw(const void* srcData, const UINT32 width, const UINT32 height, const UINT32 stride, const D2D_VECTOR_2F fOffset = { 0.f, 0.f }, float fScale = 1.f);
+	bool draw(const void* srcData, const UINT32 width, const UINT32 height, const UINT32 stride, const D2D_VECTOR_2F& fOffset = { 0.f, 0.f }, float fScale = 1.f);
 	/// @brief Drae GPU resource
-	bool draw(ID2D1Bitmap* pD2d1Bitmap, const D2D_VECTOR_2F fOffset = { 0.f, 0.f }, float fScale = 1.f);
+	bool draw(ID2D1Bitmap* pD2d1Bitmap);
 	void display();
 
 	ID2D1Factory1* const getD2Factory()const { return m_pD2d1Factory1; }
