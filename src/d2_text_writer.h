@@ -23,7 +23,10 @@ public:
 	/// @brief Draw with fixed space between characters
 	void layedOutDraw(const wchar_t* text, unsigned long textLength, const D2D1_RECT_F& rect = D2D1_RECT_F{});
 	/// @brief Draw characters having outline
-	void outLinedDraw(const wchar_t* text, unsigned long textLength, const D2D1_RECT_F& rect = D2D1_RECT_F{});
+	void outLinedDraw(const wchar_t* text, size_t textLength, const D2D1_RECT_F& rect = D2D1_RECT_F{});
+
+	/// @brief Get the width and height of a character when drawn with outline
+	D2D1_SIZE_F getGlyphSize(const wchar_t* text, size_t textLength, size_t* nConsumed = nullptr);
 
 	void toggleTextColour() { m_isColourReversed ^= true; }
 
@@ -42,6 +45,7 @@ public:
 private:
 	static constexpr float kfDefaultFontSize = 24.f;
 	static constexpr float kfDefaultThickness = 3.2f;
+	static constexpr size_t kMaxLineCharacters = 512;
 
 	ID2D1Factory1* m_pStoredD2d1Factory1 = nullptr;
 	ID2D1DeviceContext* m_pStoredD2d1DeviceContext = nullptr;
@@ -55,7 +59,7 @@ private:
 
 	float m_fFontSize = kfDefaultFontSize;
 	float m_fThickness = kfDefaultThickness;
-	unsigned int m_uiDpi = 96;
+	unsigned int m_dpi = 96;
 
 	bool m_isColourReversed = false;
 
@@ -67,7 +71,10 @@ private:
 	bool createBrushes();
 	void releaseBrushes();
 
-	bool singleLineGlyphDraw(const wchar_t* text, unsigned long textLength, const D2D1_POINT_2F& originalPos = D2D1_POINT_2F{});
+	bool drawSingleLineGlyphai(const UINT32* codePoints, size_t codePointLength, const D2D1_POINT_2F& originalPos = D2D1_POINT_2F{});
+
+	DWRITE_GLYPH_METRICS getSingleGlyphMetrics(UINT32 codePoint);
+	UINT32 stepUtf16(const wchar_t** pRead, size_t* nRemained);
 };
 
 #endif // D2_TEXT_WRITER_H_

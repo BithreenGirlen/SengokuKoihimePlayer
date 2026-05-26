@@ -2,8 +2,6 @@
 
 #include <atlbase.h>
 
-#include <vector>
-
 #include "d2_text_writer.h"
 
 #pragma comment (lib,"Dwrite.lib")
@@ -124,66 +122,97 @@ void CD2TextWriter::layedOutDraw(const wchar_t* text, unsigned long textLength, 
 	m_pStoredD2d1DeviceContext->EndDraw();
 }
 
-void CD2TextWriter::outLinedDraw(const wchar_t* text, unsigned long textLength, const D2D1_RECT_F& rect)
+void CD2TextWriter::outLinedDraw(const wchar_t* text, size_t textLength, const D2D1_RECT_F& rect)
 {
 	if (m_pStoredD2d1DeviceContext == nullptr || m_pD2d1SolidColorBrush == nullptr || m_pD2dSolidColorBrushForOutline == nullptr || m_pDWriteFontFace == nullptr)
 	{
 		return;
 	}
 
-	/*他の描画法と違って制御コードも文字列として見てしまうので一行毎に描画する。*/
-	const auto TextToLines =
-		[&text, &textLength](std::vector<std::vector<wchar_t>>& lines, size_t nMax = SIZE_MAX)
+	DWRITE_FONT_METRICS fontMetrics;
+	m_pDWriteFontFace->GetMetrics(&fontMetrics);
+	const float scale = pointSizeToDip(m_fFontSize) / fontMetrics.designUnitsPerEm;
+
+	const D2D1_SIZE_F targetSize = m_pStoredD2d1DeviceContext->GetSize();
+	const float maxWidth = (targetSize.width - (rect.left - rect.right));
+	float accumulatedWidth = 0.f;
+
+	UINT32 textBuffer[kMaxLineCharacters]{};
+	size_t textBufferLength = 0;
+	size_t line = 0;
+
+	const auto& drawTextBuffer = [&]()
 		-> void
 		{
-			const wchar_t* pLineStart = nullptr;
-			for (size_t i = 0; i < textLength; ++i)
-			{
-				if (text[i] == L'\r' || text[i] == L'\n')
-				{
-					if (pLineStart != nullptr)
-					{
-						lines.emplace_back(pLineStart, &text[i]);
-						pLineStart = nullptr;
-					}
-				}
-				else
-				{
-					if (pLineStart == nullptr)
-					{
-						pLineStart = &text[i];
-					}
-					else
-					{
-						size_t nLen = &text[i] - pLineStart;
-						if (nLen >= nMax)
-						{
-							lines.emplace_back(pLineStart, &text[i]);
-							pLineStart = &text[i];
-						}
-					}
-				}
-			}
+			D2D1_POINT_2F fPos{ rect.left, rect.top + line * pointSizeToDip(m_fFontSize) };
 
-			if (pLineStart != nullptr)
-			{
-				lines.emplace_back(pLineStart, &text[textLength]);
-			}
+			m_pStoredD2d1DeviceContext->BeginDraw();
+			drawSingleLineGlyphai(textBuffer, textBufferLength, fPos);
+			m_pStoredD2d1DeviceContext->EndDraw();
+
+			textBufferLength = 0;
+			accumulatedWidth = 0;
+			++line;
 		};
 
-	D2D1_SIZE_F fSize = m_pStoredD2d1DeviceContext->GetSize();
-	size_t nMax = static_cast<size_t>((fSize.width - (rect.left - rect.right)) / pointSizeToDip(m_fFontSize)) - 1LL;
-
-	std::vector<std::vector<wchar_t>> lines;
-	TextToLines(lines, nMax);
-
-	m_pStoredD2d1DeviceContext->BeginDraw();
-	for (size_t i = 0; i < lines.size(); ++i)
+	/* 他の描画法と違って制御コードも文字列として見てしまうので一行毎に描画する。*/
+	for (size_t nRead = 0;; ++nRead)
 	{
-		D2D1_POINT_2F fPos{ rect.left, rect.top + i * pointSizeToDip(m_fFontSize) };
-		singleLineGlyphDraw(lines[i].data(), static_cast<unsigned long>(lines[i].size()), fPos);
+		const wchar_t* pRead = text + nRead;
+		size_t nRemained = textLength - nRead;
+
+		if (nRead >= textLength)
+		{
+			drawTextBuffer();
+			break;
+		}
+
+		const wchar_t c = *pRead;
+		if (c == '\r')continue;
+		else if (c == '\n')
+		{
+			drawTextBuffer();
+			continue;
+		}
+
+		size_t nLastRemained = nRemained;
+		UINT32 codePoint = stepUtf16(&pRead, &nRemained);
+		if (nLastRemained - nRemained == 2)++nRead;
+
+		const DWRITE_GLYPH_METRICS glyphMetrics = getSingleGlyphMetrics(codePoint);
+		accumulatedWidth += glyphMetrics.advanceWidth * scale;
+		if (::isgreater(accumulatedWidth, maxWidth))
+		{
+			drawTextBuffer();
+		}
+
+		textBuffer[textBufferLength++] = codePoint;
 	}
-	m_pStoredD2d1DeviceContext->EndDraw();
+}
+
+D2D1_SIZE_F CD2TextWriter::getGlyphSize(const wchar_t* text, size_t textLength, size_t* nConsumed)
+{
+	if (m_pDWriteFontFace == nullptr)return {};
+	if (text == nullptr || textLength == 0)return {};
+
+	DWRITE_FONT_METRICS fontMetrics;
+	m_pDWriteFontFace->GetMetrics(&fontMetrics);
+	const float scale = m_fFontSize / fontMetrics.designUnitsPerEm;
+
+	wchar_t buffer[3]{};
+	buffer[0] = *text;
+	if (textLength > 1)
+	{
+		buffer[1] = *(text + 1);
+	}
+	const wchar_t* pRead = buffer;
+	size_t nRemained = textLength;
+	UINT32 codePoint = stepUtf16(&pRead, &nRemained);
+	if (nConsumed != nullptr)*nConsumed = textLength - nRemained;
+
+	const DWRITE_GLYPH_METRICS glyphMetrics = getSingleGlyphMetrics(codePoint);
+
+	return { glyphMetrics.advanceWidth * scale, glyphMetrics.advanceHeight * scale };
 }
 
 bool CD2TextWriter::hasBoldStyle() const
@@ -231,12 +260,12 @@ bool CD2TextWriter::getFontFamilyName(wchar_t* fontFamilyNameBuffer, unsigned lo
 
 void CD2TextWriter::onScaleChanged()
 {
-	m_uiDpi = ::GetDpiForSystem();
+	m_dpi = ::GetDpiForSystem();
 }
 
 float CD2TextWriter::pointSizeToDip(float fPointSize) const
 {
-	return (fPointSize / 72.f) * m_uiDpi;
+	return (fPointSize / 72.f) * m_dpi;
 }
 /* 文字書式情報解放 */
 void CD2TextWriter::releaseTextFormat()
@@ -283,22 +312,15 @@ void CD2TextWriter::releaseBrushes()
 		m_pD2dSolidColorBrushForOutline = nullptr;
 	}
 }
-/* 一行彫刻 */
-bool CD2TextWriter::singleLineGlyphDraw(const wchar_t* text, unsigned long textLength, const D2D1_POINT_2F& originalPos)
-{
-	std::vector<UINT32> codePoints;
-	codePoints.resize(textLength);
-	for (unsigned long i = 0; i < textLength; ++i)
-	{
-		codePoints[i] = text[i];
-	}
 
-	std::vector<UINT16> glyphai;
-	glyphai.resize(textLength);
-	HRESULT hr = m_pDWriteFontFace->GetGlyphIndices(codePoints.data(), static_cast<unsigned long>(codePoints.size()), glyphai.data());
+bool CD2TextWriter::drawSingleLineGlyphai(const UINT32* codePoints, size_t codePointLength, const D2D1_POINT_2F& originalPos)
+{
+	UINT16 glyphai[kMaxLineCharacters]{};
+	size_t count = codePointLength < kMaxLineCharacters ? codePointLength : kMaxLineCharacters;
+	HRESULT hr = m_pDWriteFontFace->GetGlyphIndices(codePoints, static_cast<unsigned long>(codePointLength), glyphai);
 	if (FAILED(hr))return false;
 
-	CComPtr<ID2D1PathGeometry>pD2d1PathGeometry;
+	CComPtr<ID2D1PathGeometry> pD2d1PathGeometry;
 	hr = m_pStoredD2d1Factory1->CreatePathGeometry(&pD2d1PathGeometry);
 	if (FAILED(hr))return false;
 
@@ -309,7 +331,7 @@ bool CD2TextWriter::singleLineGlyphDraw(const wchar_t* text, unsigned long textL
 	pD2d1GeometrySink->SetFillMode(D2D1_FILL_MODE::D2D1_FILL_MODE_WINDING);
 	pD2d1GeometrySink->SetSegmentFlags(D2D1_PATH_SEGMENT::D2D1_PATH_SEGMENT_FORCE_ROUND_LINE_JOIN);
 
-	hr = m_pDWriteFontFace->GetGlyphRunOutline(pointSizeToDip(m_fFontSize), glyphai.data(), nullptr, nullptr, static_cast<unsigned long>(glyphai.size()), FALSE, FALSE, pD2d1GeometrySink);
+	hr = m_pDWriteFontFace->GetGlyphRunOutline(pointSizeToDip(m_fFontSize), glyphai, nullptr, nullptr, static_cast<unsigned long>(count), FALSE, FALSE, pD2d1GeometrySink);
 	if (FAILED(hr))return false;
 
 	pD2d1GeometrySink->Close();
@@ -324,4 +346,55 @@ bool CD2TextWriter::singleLineGlyphDraw(const wchar_t* text, unsigned long textL
 	m_pStoredD2d1DeviceContext->SetTransform(D2D1::Matrix3x2F::Identity());
 
 	return true;
+}
+
+DWRITE_GLYPH_METRICS CD2TextWriter::getSingleGlyphMetrics(UINT32 codePoint)
+{
+	if (m_pDWriteFontFace == nullptr)return {};
+
+	UINT16 glyph{};
+	HRESULT hr = m_pDWriteFontFace->GetGlyphIndices(&codePoint, 1, &glyph);
+	if (FAILED(hr))return {};
+
+	DWRITE_GLYPH_METRICS dWriteGlyphMetrics{};
+	hr = m_pDWriteFontFace->GetDesignGlyphMetrics(&glyph, 1, &dWriteGlyphMetrics);
+
+	return dWriteGlyphMetrics;
+}
+
+UINT32 CD2TextWriter::stepUtf16(const wchar_t** pRead, size_t* nRemained)
+{
+	static constexpr UINT32 replacementCharacter = 0xFFFD;
+
+	if (pRead == nullptr || *pRead == nullptr || nRemained == nullptr)
+	{
+		return 0;
+	}
+
+	if (IS_HIGH_SURROGATE(*pRead[0]))
+	{
+		if (*nRemained < 2)
+		{
+			return replacementCharacter;
+		}
+
+		if (IS_LOW_SURROGATE(*pRead[1]))
+		{
+			UINT32 codePoint =
+				((static_cast<UINT32>(*pRead[0]) - 0xD800) << 10)
+				+ (static_cast<UINT32>(*pRead[1]) - 0xDC00)
+				+ 0x10000;
+
+			(*pRead) += 2;
+			(*nRemained) -= 2;
+
+			return codePoint;
+		}
+	}
+
+	UINT32 codePoint = static_cast<UINT32>(*pRead[0]);
+	(*pRead)++;
+	(*nRemained)--;
+
+	return codePoint;
 }

@@ -255,8 +255,8 @@ LRESULT CMainWindow::onPaint()
 
 	if (!m_isTextHidden)
 	{
-		const std::wstring& wstr = m_pSngkSceneCrafter->getCurrentFormattedText();
-		m_pD2TextWriter->outLinedDraw(wstr.c_str(), static_cast<unsigned long>(wstr.size()));
+		const std::wstring& message = m_pSngkSceneCrafter->getCurrentFormattedText();
+		m_pD2TextWriter->outLinedDraw(message.data(), message.size());
 	}
 	m_pD2ImageDrawer->display();
 
