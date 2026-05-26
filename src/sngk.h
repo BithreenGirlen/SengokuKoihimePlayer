@@ -11,8 +11,8 @@ namespace sngk
 	bool SearchAndLoadScenarioFile(
 		const std::wstring& stillFolderPath,
 		std::vector<adv::TextDatum>& textData,
-		std::vector<std::wstring>& animationNames,
-		std::vector<adv::SceneDatum> &sceneData
+		std::vector<adv::SceneDatum>& sceneData,
+		std::vector<adv::LabelDatum>& labelData
 	);
 }
 

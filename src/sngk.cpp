@@ -159,7 +159,7 @@ namespace sngk
 	}
 }
 /*脚本ファイル探索と取り込み*/
-bool sngk::SearchAndLoadScenarioFile(const std::wstring& stillFolderPath, std::vector<adv::TextDatum>& textData, std::vector<std::wstring>& animationNames, std::vector<adv::SceneDatum>& sceneData)
+bool sngk::SearchAndLoadScenarioFile(const std::wstring& stillFolderPath, std::vector<adv::TextDatum>& textData, std::vector<adv::SceneDatum>& sceneData, std::vector<adv::LabelDatum>& labelData)
 {
 	SResourcePath resourcePath;
 	bool bRet = DeriveResourcePathFromStillFolderPath(stillFolderPath, resourcePath);
@@ -174,6 +174,8 @@ bool sngk::SearchAndLoadScenarioFile(const std::wstring& stillFolderPath, std::v
 
 	std::wstring voicePathBuffer;
 	adv::SceneDatum sceneDatumBuffer;
+	std::vector<std::wstring> animationNames;
+	bool toCreateLabel = false;
 
 	for(const auto& tokenDatum : tokenData)
 	{
@@ -192,6 +194,18 @@ bool sngk::SearchAndLoadScenarioFile(const std::wstring& stillFolderPath, std::v
 
 			sceneDatumBuffer.nTextIndex = textData.size() - 1;
 			sceneData.push_back(sceneDatumBuffer);
+
+			if (toCreateLabel && !animationNames.empty())
+			{
+				adv::LabelDatum labelDatum
+				{
+					.caption = animationNames.back(),
+					.nSceneIndex = sceneData.size() - 1
+				};
+				labelData.push_back(std::move(labelDatum));
+
+				toCreateLabel = false;
+			}
 		}
 		else if (tokenDatum.type == ETokenDataType::kVoice)
 		{
@@ -211,6 +225,7 @@ bool sngk::SearchAndLoadScenarioFile(const std::wstring& stillFolderPath, std::v
 						++sceneDatumBuffer.nImageIndex;
 					}
 					animationNames.push_back(std::move(animationName));
+					toCreateLabel = true;
 				}
 			}
 		}

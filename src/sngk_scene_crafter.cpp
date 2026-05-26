@@ -28,10 +28,9 @@ bool CSngkSceneCrafter::loadScenario(const wchar_t* stillFolderPath)
 	bool bRet = loadImages(stillFolderPath);
 	if (!bRet)return false;
 
-	std::vector<std::wstring> animationNames;
-	bRet = sngk::SearchAndLoadScenarioFile(stillFolderPath, m_textData, animationNames, m_sceneData);
-	if (animationNames.size() > m_images.size())return false;
+	bRet = sngk::SearchAndLoadScenarioFile(stillFolderPath, m_textData, m_sceneData, m_labelData);
 
+	prepareScene();
 	m_animationClock.restart();
 
 	return bRet;
@@ -90,6 +89,8 @@ void CSngkSceneCrafter::shiftScene(bool forward)
 			m_nSceneIndex = m_sceneData.size() - 1;
 		}
 	}
+
+	prepareScene();
 }
 /*最終場面是否*/
 bool CSngkSceneCrafter::hasReachedLastScene() const noexcept
@@ -127,23 +128,8 @@ ID2D1Bitmap* CSngkSceneCrafter::getCurrentImage()
 	return nullptr;
 }
 
-const std::wstring& CSngkSceneCrafter::getCurrentFormattedText()
+const std::wstring& CSngkSceneCrafter::getCurrentFormattedText() const noexcept
 {
-	m_formattedText.clear();
-
-	if (m_nSceneIndex < m_sceneData.size())
-	{
-		size_t nTextIndex = m_sceneData[m_nSceneIndex].nTextIndex;
-		if (nTextIndex < m_textData.size())
-		{
-			m_formattedText.assign(m_textData[nTextIndex].message);
-			if (!m_formattedText.empty() && m_formattedText.back() != L'\n')m_formattedText.push_back(L'\n');
-			wchar_t buffer[64]{};
-			::swprintf_s(buffer, L"%zu/%zu", nTextIndex + 1, m_textData.size());
-			m_formattedText += buffer;
-		}
-	}
-
 	return m_formattedText;
 }
 
@@ -161,6 +147,29 @@ const wchar_t* CSngkSceneCrafter::getCurrentVoiceFilePath()
 	return nullptr;
 }
 
+const std::vector<adv::LabelDatum>& CSngkSceneCrafter::getLabelData() const noexcept
+{
+	return m_labelData;
+}
+
+bool CSngkSceneCrafter::jumpToLabel(size_t nLabelIndex)
+{
+	if (nLabelIndex < m_labelData.size())
+	{
+		const auto& labelDatum = m_labelData[nLabelIndex];
+
+		if (labelDatum.nSceneIndex < m_sceneData.size())
+		{
+			m_nSceneIndex = labelDatum.nSceneIndex;
+			prepareScene();
+
+			return true;
+		}
+	}
+
+	return false;
+}
+
 void CSngkSceneCrafter::setPause(bool paused)
 {
 	m_animationClock.restart();
@@ -171,6 +180,17 @@ void CSngkSceneCrafter::setPause(bool paused)
 bool CSngkSceneCrafter::isPaused() const noexcept
 {
 	return m_isPaused;
+}
+/*コマ送り*/
+void CSngkSceneCrafter::shiftAnimation()
+{
+	if (m_nImageIndex < m_images.size())
+	{
+		if (++m_nAnimationIndex >= m_images[m_nImageIndex].size())
+		{
+			m_nAnimationIndex = 0;
+		}
+	}
 }
 /*コマ送り加速・減速*/
 void CSngkSceneCrafter::updateAnimationInterval(bool faster)
@@ -200,6 +220,8 @@ void CSngkSceneCrafter::clearScenarioData()
 	m_images.clear();
 	m_nImageIndex = 0;
 	m_nAnimationIndex = 0;
+
+	m_labelData.clear();
 
 	resetAnimationInterval();
 }
@@ -350,14 +372,27 @@ void CSngkSceneCrafter::ImportImage(const SPortion& sPortion, UINT uiStride, std
 		bitmaps.push_back(std::move(pD2d1Bitmap));
 	}
 }
-/*コマ送り*/
-void CSngkSceneCrafter::shiftAnimation()
+
+void CSngkSceneCrafter::prepareScene()
 {
-	if (m_nImageIndex < m_images.size())
+	prepareText();
+}
+
+void CSngkSceneCrafter::prepareText()
+{
+	m_formattedText.clear();
+
+	if (m_nSceneIndex < m_sceneData.size())
 	{
-		if (++m_nAnimationIndex >= m_images[m_nImageIndex].size())
+		size_t nTextIndex = m_sceneData[m_nSceneIndex].nTextIndex;
+		if (nTextIndex < m_textData.size())
 		{
-			m_nAnimationIndex = 0;
+			m_formattedText.assign(m_textData[nTextIndex].message);
+			if (!m_formattedText.empty() && m_formattedText.back() != L'\n')m_formattedText.push_back(L'\n');
+			wchar_t buffer[64]{};
+			::swprintf_s(buffer, L"%zu/%zu", nTextIndex + 1, m_textData.size());
+			m_formattedText += buffer;
 		}
 	}
+
 }

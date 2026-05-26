@@ -28,8 +28,11 @@ public:
 	bool hasReachedLastScene() const noexcept;
 
 	ID2D1Bitmap* getCurrentImage();
-	const std::wstring& getCurrentFormattedText();
+	const std::wstring& getCurrentFormattedText() const noexcept;
 	const wchar_t* getCurrentVoiceFilePath();
+
+	const std::vector<adv::LabelDatum>& getLabelData() const noexcept;
+	bool jumpToLabel(size_t nLabelIndex);
 
 	void setPause(bool paused);
 	bool isPaused() const noexcept;
@@ -62,18 +65,20 @@ private:
 
 	std::vector<adv::SceneDatum> m_sceneData;
 	size_t m_nSceneIndex = 0;
+	std::vector<adv::LabelDatum> m_labelData;
 
 	std::wstring m_formattedText;
 
 	bool m_isPaused = false;
+	CWinClock m_animationClock;
+	int m_fps = Constants::kDefaultFps;
 
 	void clearScenarioData();
 	bool loadImages(const wchar_t* stillFolderPath);
-
 	void ImportImage(const SPortion& sPortion, UINT uiStride, std::vector<CComPtr<ID2D1Bitmap>>& bitmaps);
 
-	CWinClock m_animationClock;
-	int m_fps = Constants::kDefaultFps;
+	void prepareScene();
+	void prepareText();
 };
 
 #endif // !SNGK_SCENE_CRAFTER_H_

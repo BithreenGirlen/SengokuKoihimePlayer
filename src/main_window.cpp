@@ -130,6 +130,8 @@ LRESULT CMainWindow::HandleMessage(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM l
 		return onLButtonDown(wParam, lParam);
 	case WM_LBUTTONUP:
 		return onLButtonUp(wParam, lParam);
+	case WM_RBUTTONUP:
+		return onRButtonUp(wParam, lParam);
 	case WM_MBUTTONUP:
 		return onMButtonUp(wParam, lParam);
 	}
@@ -473,6 +475,33 @@ LRESULT CMainWindow::onRButtonUp(WPARAM wParam, LPARAM lParam)
 	{
 		m_mouseState.wasRightCombined = false;
 		return 0;
+	}
+
+	WORD pressedKey = LOWORD(wParam);
+	if (pressedKey == 0 && m_pSngkSceneCrafter != nullptr && m_pSngkSceneCrafter->hasScenarioData())
+	{
+		const auto& labelData = m_pSngkSceneCrafter->getLabelData();
+		HMENU hPopupMenu = ::CreatePopupMenu();
+		if (hPopupMenu != nullptr)
+		{
+			for (size_t i = 0; i < labelData.size(); ++i)
+			{
+				::AppendMenuW(hPopupMenu, MF_STRING, i + 1, labelData[i].caption.c_str());
+			}
+
+			POINT point{};
+			::GetCursorPos(&point);
+			BOOL menuIndex = ::TrackPopupMenu(hPopupMenu, TPM_LEFTALIGN | TPM_TOPALIGN | TPM_LEFTBUTTON | TPM_NONOTIFY | TPM_RETURNCMD, point.x, point.y, 0, m_hWnd, nullptr);
+			if (menuIndex > 0)
+			{
+				size_t labelIndex = static_cast<size_t>(menuIndex - 1);
+				m_pSngkSceneCrafter->jumpToLabel(labelIndex);
+
+				updateText();
+			}
+
+			::DestroyMenu(hPopupMenu);
+		}
 	}
 
 	return 0;
