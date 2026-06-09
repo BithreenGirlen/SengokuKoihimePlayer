@@ -99,11 +99,11 @@ private:
 
 	CD2ImageDrawer* m_pD2ImageDrawer = nullptr;
 	CD2TextWriter* m_pD2TextWriter = nullptr;
-	CMfMediaPlayer* m_pAudioPlayer = nullptr;
-	CViewManager* m_pViewManager = nullptr;
+	CMfMediaPlayer m_audioPlayer;
+	CViewManager m_viewManager;
 	CSngkSceneCrafter* m_pSngkSceneCrafter = nullptr;
 
-	CFontSettingDialogue* m_pFontSettingDialogue = nullptr;
+	CFontSettingDialogue m_fontSettingDialogue;
 
 	CWinClock m_textClock;
 

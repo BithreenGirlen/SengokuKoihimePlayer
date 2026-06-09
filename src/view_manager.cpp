@@ -3,19 +3,9 @@
 #include "view_manager.h"
 
 
-CViewManager::CViewManager(HWND hWnd)
-	:m_hRenderTargetWnd(hWnd)
+void CViewManager::setBaseSize(HWND hRenderTargetWindow, unsigned int width, unsigned int height)
 {
-
-}
-
-CViewManager::~CViewManager()
-{
-
-}
-
-void CViewManager::setBaseSize(unsigned int width, unsigned int height)
-{
+	m_hRenderTargetWnd = hRenderTargetWindow;
 	m_baseWidth = width;
 	m_baseHeight = height;
 

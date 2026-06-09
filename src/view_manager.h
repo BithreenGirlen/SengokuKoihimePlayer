@@ -6,10 +6,10 @@
 class CViewManager
 {
 public:
-    CViewManager(HWND hWnd);
-    ~CViewManager();
+    CViewManager() = default;
+    ~CViewManager() = default;
 
-    void setBaseSize(unsigned int width, unsigned int height);
+    void setBaseSize(HWND hRenderTargetWindow, unsigned int width, unsigned int height);
     void getBaseSize(unsigned int* width, unsigned int* height);
 
     void setScale(float fScale);

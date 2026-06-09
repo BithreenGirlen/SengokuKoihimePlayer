@@ -147,16 +147,10 @@ LRESULT CMainWindow::onCreate(HWND hWnd)
 
 	m_pD2ImageDrawer = new CD2ImageDrawer(m_hWnd);
 
-	m_pAudioPlayer = new CMfMediaPlayer();
-
 	m_pD2TextWriter = new CD2TextWriter(m_pD2ImageDrawer->getD2Factory(), m_pD2ImageDrawer->getD2DeviceContext());
 	m_pD2TextWriter->setupOutLinedDrawing(L"C:\\Windows\\Fonts\\yumindb.ttf");
 
-	m_pViewManager = new CViewManager(m_hWnd);
-
 	m_pSngkSceneCrafter = new CSngkSceneCrafter(m_pD2ImageDrawer->getD2DeviceContext());
-
-	m_pFontSettingDialogue = new CFontSettingDialogue();
 
 	return 0;
 }
@@ -170,26 +164,15 @@ LRESULT CMainWindow::onDestroy()
 /* WM_CLOSE */
 LRESULT CMainWindow::onClose()
 {
-	if (m_pFontSettingDialogue != nullptr)
+	if (m_fontSettingDialogue.getHwnd() != nullptr)
 	{
-		if (m_pFontSettingDialogue->getHwnd() != nullptr)
-		{
-			::SendMessage(m_pFontSettingDialogue->getHwnd(), WM_CLOSE, 0, 0);
-			delete m_pFontSettingDialogue;
-			m_pFontSettingDialogue = nullptr;
-		}
+		::SendMessage(m_fontSettingDialogue.getHwnd(), WM_CLOSE, 0, 0);
 	}
 
 	if (m_pSngkSceneCrafter != nullptr)
 	{
 		delete m_pSngkSceneCrafter;
 		m_pSngkSceneCrafter = nullptr;
-	}
-
-	if (m_pViewManager != nullptr)
-	{
-		delete m_pViewManager;
-		m_pViewManager = nullptr;
 	}
 
 	if (m_pD2TextWriter != nullptr)
@@ -204,12 +187,6 @@ LRESULT CMainWindow::onClose()
 		m_pD2ImageDrawer = nullptr;
 	}
 
-	if (m_pAudioPlayer != nullptr)
-	{
-		delete m_pAudioPlayer;
-		m_pAudioPlayer = nullptr;
-	}
-
 	::DestroyWindow(m_hWnd);
 	::UnregisterClassW(m_className, m_hInstance);
 
@@ -221,7 +198,7 @@ LRESULT CMainWindow::onPaint()
 	PAINTSTRUCT ps{};
 	HDC hDC = ::BeginPaint(m_hWnd, &ps);
 
-	if (m_pD2ImageDrawer == nullptr || m_pD2TextWriter == nullptr || m_pViewManager == nullptr || m_pSngkSceneCrafter == nullptr || !m_pSngkSceneCrafter->hasScenarioData())
+	if (m_pD2ImageDrawer == nullptr || m_pD2TextWriter == nullptr || m_pSngkSceneCrafter == nullptr || !m_pSngkSceneCrafter->hasScenarioData())
 	{
 		::EndPaint(m_hWnd, &ps);
 		return 0;
@@ -240,9 +217,9 @@ LRESULT CMainWindow::onPaint()
 
 		D2D1_SIZE_U srcSize = pD2d1Bitmap->GetPixelSize();
 
-		const float fScale = m_pViewManager->getScale();
-		const float fX = (srcSize.width * fScale - targetWidth) / 2 + m_pViewManager->offsetX() / 2;
-		const float fY = (srcSize.height * fScale - targetHeight) / 2 + m_pViewManager->offsetY() / 2;
+		const float fScale = m_viewManager.getScale();
+		const float fX = (srcSize.width * fScale - targetWidth) / 2 + m_viewManager.offsetX() / 2;
+		const float fY = (srcSize.height * fScale - targetHeight) / 2 + m_viewManager.offsetY() / 2;
 
 		const D2D1_MATRIX_3X2_F scaleMatrix = D2D1::Matrix3x2F::Scale(fScale, fScale);
 		const D2D1_MATRIX_3X2_F translateMatrix = D2D1::Matrix3x2F::Translation(-fX, -fY);
@@ -364,14 +341,10 @@ LRESULT CMainWindow::onMouseMove(WPARAM wParam, LPARAM lParam)
 
 		if (m_mouseState.hasLeftBeenDragged)
 		{
-			if (m_pViewManager != nullptr)
-			{
-				int iX = m_mouseState.lastMousePos.x - pt.x;
-				int iY = m_mouseState.lastMousePos.y - pt.y;
+			int iX = m_mouseState.lastMousePos.x - pt.x;
+			int iY = m_mouseState.lastMousePos.y - pt.y;
 
-				m_pViewManager->addOffset(iX, iY);
-				updateScreen();
-			}
+			m_viewManager.addOffset(iX, iY);
 		}
 
 		m_mouseState.lastMousePos = pt;
@@ -388,10 +361,7 @@ LRESULT CMainWindow::onMouseWheel(WPARAM wParam, LPARAM lParam)
 
 	if (pressedKey == 0)
 	{
-		if (m_pViewManager != nullptr)
-		{
-			m_pViewManager->rescale(scroll > 0);
-		}
+		m_viewManager.rescale(scroll > 0);
 	}
 	else if (pressedKey == MK_LBUTTON)
 	{
@@ -512,10 +482,7 @@ LRESULT CMainWindow::onMButtonUp(WPARAM wParam, LPARAM lParam)
 	WORD pressedKey = LOWORD(wParam);
 	if (pressedKey == 0)
 	{
-		if (m_pViewManager != nullptr)
-		{
-			m_pViewManager->resetScale();
-		}
+		m_viewManager.resetScale();
 
 		if (m_pSngkSceneCrafter != nullptr)
 		{
@@ -575,8 +542,8 @@ void CMainWindow::menuOnOpen()
 	std::wstring selectedFolderPath = win_dialogue::SelectFolder(L"Select stillAnimation/st_XXXXXXXX folder", m_hWnd);
 	if (!selectedFolderPath.empty())
 	{
-		setupScenario(selectedFolderPath.c_str());
-		createFolderList(selectedFolderPath.c_str());
+		setupScenario(selectedFolderPath);
+		createFolderList(selectedFolderPath);
 	}
 }
 /* 次フォルダに移動 */
@@ -603,23 +570,20 @@ void CMainWindow::menuOnForeFolder()
 void CMainWindow::menuOnAudioSetting()
 {
 	CMediaSettingDialogue mediaSettingDialogue;
-	mediaSettingDialogue.open(m_hInstance, m_hWnd, m_pAudioPlayer, L"Audio", reinterpret_cast<HICON>(::GetClassLongPtr(m_hWnd, GCLP_HICON)));
+	mediaSettingDialogue.open(m_hInstance, m_hWnd, &m_audioPlayer, L"Audio", reinterpret_cast<HICON>(::GetClassLongPtr(m_hWnd, GCLP_HICON)));
 }
 /* 書体設定 */
 void CMainWindow::menuOnFontSetting()
 {
-	if (m_pFontSettingDialogue != nullptr)
+	if (m_fontSettingDialogue.getHwnd() == nullptr)
 	{
-		if (m_pFontSettingDialogue->getHwnd() == nullptr)
-		{
-			HWND hWnd = m_pFontSettingDialogue->open(m_hInstance, m_hWnd, L"Font", m_pD2TextWriter);
-			::SendMessage(hWnd, WM_SETICON, ICON_SMALL, ::GetClassLongPtr(m_hWnd, GCLP_HICON));
-			::ShowWindow(hWnd, SW_SHOWNORMAL);
-		}
-		else
-		{
-			::SetFocus(m_pFontSettingDialogue->getHwnd());
-		}
+		HWND hWnd = m_fontSettingDialogue.open(m_hInstance, m_hWnd, L"Font", m_pD2TextWriter);
+		::SendMessage(hWnd, WM_SETICON, ICON_SMALL, ::GetClassLongPtr(m_hWnd, GCLP_HICON));
+		::ShowWindow(hWnd, SW_SHOWNORMAL);
+	}
+	else
+	{
+		::SetFocus(m_fontSettingDialogue.getHwnd());
 	}
 }
 /* 一時停止 */
@@ -685,10 +649,7 @@ void CMainWindow::toggleWindowBorderStyle()
 		::SetMenu(m_hWnd, m_hMenuBar);
 	}
 
-	if (m_pViewManager != nullptr)
-	{
-		m_pViewManager->onStyleChanged();
-	}
+	m_viewManager.onStyleChanged();
 }
 /* フォルダ一覧表作成 */
 bool CMainWindow::createFolderList(const std::wstring& stillFolderPath)
@@ -713,11 +674,8 @@ void CMainWindow::setupScenario(const std::wstring& stillFolderPath)
 		unsigned int uiHeight = 0;
 		m_pSngkSceneCrafter->getCurrentImageSize(&uiWidth, &uiHeight);
 
-		if (m_pViewManager != nullptr)
-		{
-			m_pViewManager->setBaseSize(uiWidth, uiHeight);
-			m_pViewManager->resetScale();
-		}
+		m_viewManager.setBaseSize(m_hWnd, uiWidth, uiHeight);
+		m_viewManager.resetScale();
 
 		updateText();
 	}
@@ -732,16 +690,13 @@ void CMainWindow::updateScreen() const
 /* 文章表示経過時間確認 */
 void CMainWindow::checkTextClock()
 {
-	if (m_pAudioPlayer != nullptr)
+	float fElapsed = m_textClock.getElapsedTime();
+	if (::isgreaterequal(fElapsed, 2.f))
 	{
-		float fElapsed = m_textClock.getElapsedTime();
-		if (::isgreaterequal(fElapsed, 2.f))
+		m_textClock.restart();
+		if (m_audioPlayer.isEnded())
 		{
-			m_textClock.restart();
-			if (m_pAudioPlayer->isEnded())
-			{
-				autoTexting();
-			}
+			autoTexting();
 		}
 	}
 }
@@ -759,13 +714,10 @@ void CMainWindow::updateText()
 {
 	if (m_pSngkSceneCrafter != nullptr)
 	{
-		if (m_pAudioPlayer != nullptr)
+		const wchar_t* pwzVoiceFilePath = m_pSngkSceneCrafter->getCurrentVoiceFilePath();
+		if (pwzVoiceFilePath != nullptr && *pwzVoiceFilePath != L'\0')
 		{
-			const wchar_t* pwzVoiceFilePath = m_pSngkSceneCrafter->getCurrentVoiceFilePath();
-			if (pwzVoiceFilePath != nullptr && *pwzVoiceFilePath != L'\0')
-			{
-				m_pAudioPlayer->play(pwzVoiceFilePath);
-			}
+			m_audioPlayer.play(pwzVoiceFilePath);
 		}
 	}
 }
