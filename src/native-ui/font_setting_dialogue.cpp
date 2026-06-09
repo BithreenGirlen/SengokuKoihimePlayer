@@ -19,12 +19,14 @@ CFontSettingDialogue::~CFontSettingDialogue()
 	}
 }
 
-HWND CFontSettingDialogue::open(HINSTANCE hInstance, HWND hWndParent, const wchar_t* pwzWindowName, void* pTextWriter)
+HWND CFontSettingDialogue::open(HINSTANCE hInstance, HWND hWndParent, const wchar_t* pwzWindowName, void* pTextWriter, void(*pFontChangeCallback)(void* pUserDatum, FontCallbackDatum* pFontCallbackDatum), void* pCallbackUserDatum)
 {
 	CDialogueTemplate dialogueTemplate;
 	dialogueTemplate.setWindowSize(160, 160);
 
 	m_pTextWriter = pTextWriter;
+	m_pFontChangeCallback = pFontChangeCallback;
+	m_pCallbackUserDatum = pCallbackUserDatum;
 
 	return ::CreateDialogIndirectParam(hInstance, (LPCDLGTEMPLATE)dialogueTemplate.generate(pwzWindowName), hWndParent, (DLGPROC)DialogProc, (LPARAM)this);
 }
@@ -286,12 +288,27 @@ void CFontSettingDialogue::onApplyButton()
 		auto filePaths = winFont.findFontFilePaths(fontName.c_str(), bold, italic);
 		if (!filePaths.empty())
 		{
-			float fFontSize = static_cast<float>(m_fontSizeSlider.getPosition());
-			float fThickness = m_fontThicknessSlider.getPosition();
+			float fontSize = static_cast<float>(m_fontSizeSlider.getPosition());
+			float fontThickness = m_fontThicknessSlider.getPosition();
 
 			CD2TextWriter* pD2TextWriter = static_cast<CD2TextWriter*>(m_pTextWriter);
 			pD2TextWriter->setFontByFontName(fontName.c_str(), winFont.getLocaleName(), bold, italic);
-			pD2TextWriter->setupOutLinedDrawing(filePaths[0].c_str(), bold, italic, fFontSize, fThickness);
+			pD2TextWriter->setupOutLinedDrawing(filePaths[0].c_str(), bold, italic, fontSize, fontThickness);
+
+			if (m_pFontChangeCallback != nullptr)
+			{
+				FontCallbackDatum fontCallbackdatum
+				{
+					.fontFamilyName = fontName.c_str(),
+					.localeName = winFont.getLocaleName(),
+					.fontFilePath = filePaths[0].c_str(),
+					.fontSize = fontSize,
+					.fontThickness = fontThickness,
+					.bold = bold,
+					.italic = italic
+				};
+				m_pFontChangeCallback(m_pCallbackUserDatum, &fontCallbackdatum);
+			}
 		}
 	}
 }

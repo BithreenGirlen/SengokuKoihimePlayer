@@ -149,6 +149,7 @@ LRESULT CMainWindow::onCreate(HWND hWnd)
 
 	m_pD2TextWriter = new CD2TextWriter(m_pD2ImageDrawer->getD2Factory(), m_pD2ImageDrawer->getD2DeviceContext());
 	m_pD2TextWriter->setupOutLinedDrawing(L"C:\\Windows\\Fonts\\yumindb.ttf");
+	m_pD2TextWriter->onDpiChanged(::GetDpiForWindow(m_hWnd));
 
 	m_pSngkSceneCrafter = new CSngkSceneCrafter(m_pD2ImageDrawer->getD2DeviceContext());
 
@@ -232,8 +233,10 @@ LRESULT CMainWindow::onPaint()
 
 	if (!m_isTextHidden)
 	{
-		const std::wstring& message = m_pSngkSceneCrafter->getCurrentFormattedText();
-		m_pD2TextWriter->outLinedDraw(message.data(), message.size());
+		if (m_pSceneTextBitmap != nullptr)
+		{
+			m_pD2ImageDrawer->draw(m_pSceneTextBitmap);
+		}
 	}
 	m_pD2ImageDrawer->display();
 
@@ -286,6 +289,7 @@ LRESULT CMainWindow::onKeyUp(WPARAM wParam, LPARAM lParam)
 		if (m_pD2TextWriter != nullptr)
 		{
 			m_pD2TextWriter->toggleTextColour();
+			recreateSceneTextBitmap();
 		}
 		break;
 	case 'T':
@@ -362,6 +366,7 @@ LRESULT CMainWindow::onMouseWheel(WPARAM wParam, LPARAM lParam)
 	if (pressedKey == 0)
 	{
 		m_viewManager.rescale(scroll > 0);
+		recreateSceneTextBitmap();
 	}
 	else if (pressedKey == MK_LBUTTON)
 	{
@@ -483,6 +488,7 @@ LRESULT CMainWindow::onMButtonUp(WPARAM wParam, LPARAM lParam)
 	if (pressedKey == 0)
 	{
 		m_viewManager.resetScale();
+		recreateSceneTextBitmap();
 
 		if (m_pSngkSceneCrafter != nullptr)
 		{
@@ -577,7 +583,16 @@ void CMainWindow::menuOnFontSetting()
 {
 	if (m_fontSettingDialogue.getHwnd() == nullptr)
 	{
-		HWND hWnd = m_fontSettingDialogue.open(m_hInstance, m_hWnd, L"Font", m_pD2TextWriter);
+		const auto FontChangeCallback = [](void* pUserDatum, CFontSettingDialogue::FontCallbackDatum *pFontCallbackDatum)
+			-> void
+			{
+				CMainWindow* pThis = static_cast<CMainWindow*>(pUserDatum);
+				if (pThis != nullptr)
+				{
+					pThis->recreateSceneTextBitmap();
+				}
+			};
+		HWND hWnd = m_fontSettingDialogue.open(m_hInstance, m_hWnd, L"Font", m_pD2TextWriter, FontChangeCallback, this);
 		::SendMessage(hWnd, WM_SETICON, ICON_SMALL, ::GetClassLongPtr(m_hWnd, GCLP_HICON));
 		::ShowWindow(hWnd, SW_SHOWNORMAL);
 	}
@@ -714,6 +729,8 @@ void CMainWindow::updateText()
 {
 	if (m_pSngkSceneCrafter != nullptr)
 	{
+		recreateSceneTextBitmap();
+
 		const wchar_t* pwzVoiceFilePath = m_pSngkSceneCrafter->getCurrentVoiceFilePath();
 		if (pwzVoiceFilePath != nullptr && *pwzVoiceFilePath != L'\0')
 		{
@@ -730,5 +747,41 @@ void CMainWindow::autoTexting()
 		{
 			shiftText(true);
 		}
+	}
+}
+
+void CMainWindow::recreateSceneTextBitmap()
+{
+	if (m_pSngkSceneCrafter == nullptr)return;
+
+	RECT rc;
+	::GetClientRect(m_hWnd, &rc);
+
+	const std::wstring& sceneText = m_pSngkSceneCrafter->getCurrentFormattedText();
+	m_pSceneTextBitmap.Release();
+	drawTextOnBitmap(m_pD2TextWriter, sceneText.c_str(), sceneText.size(), &m_pSceneTextBitmap, static_cast<float>(rc.right - rc.left));
+}
+
+void CMainWindow::drawTextOnBitmap(CD2TextWriter* pTextWriter, const wchar_t* text, size_t textLength, ID2D1Bitmap1** targetBitmap, float wrapWidth)
+{
+	if (m_pD2ImageDrawer == nullptr || pTextWriter == nullptr || targetBitmap == nullptr)return;
+
+	const D2D1_SIZE_F textBounds = pTextWriter->calculateTextBounds(text, textLength, wrapWidth);
+	const D2D1_SIZE_U bitmapSize{ static_cast<UINT>(textBounds.width), static_cast<UINT>(textBounds.height) };
+
+	/* Do not specify DPI here. */
+	const D2D1_BITMAP_PROPERTIES1 bitmapProperties1 = D2D1::BitmapProperties1(
+		D2D1_BITMAP_OPTIONS::D2D1_BITMAP_OPTIONS_TARGET,
+		D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED));
+
+	HRESULT hr = m_pD2ImageDrawer->getD2DeviceContext()->CreateBitmap(bitmapSize, nullptr, 0, bitmapProperties1, targetBitmap);
+	if (SUCCEEDED(hr))
+	{
+		CComPtr<ID2D1Image> pPreviousRendererTarget;
+		m_pD2ImageDrawer->getD2DeviceContext()->GetTarget(&pPreviousRendererTarget);
+
+		m_pD2ImageDrawer->getD2DeviceContext()->SetTarget(*targetBitmap);
+		pTextWriter->outLinedDraw(text, textLength, wrapWidth);
+		m_pD2ImageDrawer->getD2DeviceContext()->SetTarget(pPreviousRendererTarget);
 	}
 }

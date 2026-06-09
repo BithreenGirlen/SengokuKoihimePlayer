@@ -4,7 +4,7 @@
 
 #include "d2_text_writer.h"
 
-#pragma comment (lib,"Dwrite.lib")
+#pragma comment (lib, "Dwrite.lib")
 
 CD2TextWriter::CD2TextWriter(ID2D1Factory1* pD2d1Factory1, ID2D1DeviceContext* pD2d1DeviceContext)
 	:m_pStoredD2d1Factory1(pD2d1Factory1), m_pStoredD2d1DeviceContext(pD2d1DeviceContext)
@@ -14,14 +14,7 @@ CD2TextWriter::CD2TextWriter(ID2D1Factory1* pD2d1Factory1, ID2D1DeviceContext* p
 
 	setFontByFontName(nullptr);
 
-	if (m_pStoredD2d1DeviceContext != nullptr)
-	{
-		m_pStoredD2d1DeviceContext->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_ALIASED);
-	}
-
 	createBrushes();
-
-	onScaleChanged();
 }
 
 CD2TextWriter::~CD2TextWriter()
@@ -41,8 +34,6 @@ CD2TextWriter::~CD2TextWriter()
 
 bool CD2TextWriter::setFontByFontName(const wchar_t* fontFamilyName, const wchar_t* localeName, bool bold, bool italic, float fontSize)
 {
-	if (m_pStoredD2d1DeviceContext == nullptr)return false;
-
 	releaseTextFormat();
 
 	HRESULT hr = m_pDWriteFactory->CreateTextFormat(
@@ -60,26 +51,24 @@ bool CD2TextWriter::setFontByFontName(const wchar_t* fontFamilyName, const wchar
 
 bool CD2TextWriter::setupOutLinedDrawing(const wchar_t* fontFilePath, bool toSimulateBold, bool toSimulateItalic, float fontSize, float thickness)
 {
-	if (m_pStoredD2d1DeviceContext == nullptr)return false;
-
 	releaseFontFace();
 
 	CComPtr<IDWriteFontFile> pDWriteFontFile;
 	HRESULT hr = m_pDWriteFactory->CreateFontFileReference(fontFilePath, nullptr, &pDWriteFontFile);
 	if (FAILED(hr))return false;
 
-	BOOL iSupported = FALSE;
-	DWRITE_FONT_FILE_TYPE fontType = DWRITE_FONT_FILE_TYPE::DWRITE_FONT_FILE_TYPE_UNKNOWN;
-	DWRITE_FONT_FACE_TYPE fontFace = DWRITE_FONT_FACE_TYPE::DWRITE_FONT_FACE_TYPE_UNKNOWN;
-	UINT32 uiFaceCount = 0;
-	hr = pDWriteFontFile->Analyze(&iSupported, &fontType, &fontFace, &uiFaceCount);
+	BOOL iSupportedFontType = FALSE;
+	DWRITE_FONT_FILE_TYPE fontFileType = DWRITE_FONT_FILE_TYPE::DWRITE_FONT_FILE_TYPE_UNKNOWN;
+	DWRITE_FONT_FACE_TYPE fontFaceType = DWRITE_FONT_FACE_TYPE::DWRITE_FONT_FACE_TYPE_UNKNOWN;
+	UINT32 fontFaceCount = 0;
+	hr = pDWriteFontFile->Analyze(&iSupportedFontType, &fontFileType, &fontFaceType, &fontFaceCount);
 
 	DWRITE_FONT_SIMULATIONS fontSimulations = DWRITE_FONT_SIMULATIONS::DWRITE_FONT_SIMULATIONS_NONE;
 	if (toSimulateBold)fontSimulations |= DWRITE_FONT_SIMULATIONS::DWRITE_FONT_SIMULATIONS_BOLD;
 	if (toSimulateItalic)fontSimulations |= DWRITE_FONT_SIMULATIONS::DWRITE_FONT_SIMULATIONS_OBLIQUE;
 
-	IDWriteFontFile* pDWriteFontFiles[] = { pDWriteFontFile };
-	hr = m_pDWriteFactory->CreateFontFace(fontFace, 1U, pDWriteFontFiles, 0, fontSimulations, &m_pDWriteFontFace);
+	IDWriteFontFile* const pDWriteFontFiles[] = { pDWriteFontFile };
+	hr = m_pDWriteFactory->CreateFontFace(fontFaceType, 1U, pDWriteFontFiles, 0, fontSimulations, &m_pDWriteFontFace);
 	if (SUCCEEDED(hr))
 	{
 		m_fFontSize = fontSize;
@@ -89,18 +78,18 @@ bool CD2TextWriter::setupOutLinedDrawing(const wchar_t* fontFilePath, bool toSim
 	return SUCCEEDED(hr);
 }
 
-void CD2TextWriter::draw(const wchar_t* text, unsigned long textLength, const D2D1_RECT_F& rect)
+void CD2TextWriter::simpleDraw(const wchar_t* text, unsigned long textLength, const D2D1_RECT_F& layoutRect)
 {
 	if (m_pStoredD2d1DeviceContext == nullptr || m_pDWriteTextFormat == nullptr || m_pD2d1SolidColorBrush == nullptr)
 	{
 		return;
 	}
 	m_pStoredD2d1DeviceContext->BeginDraw();
-	m_pStoredD2d1DeviceContext->DrawText(text, textLength, m_pDWriteTextFormat, &rect, m_pD2d1SolidColorBrush);
+	m_pStoredD2d1DeviceContext->DrawText(text, textLength, m_pDWriteTextFormat, layoutRect, m_pD2d1SolidColorBrush);
 	m_pStoredD2d1DeviceContext->EndDraw();
 }
 
-void CD2TextWriter::layedOutDraw(const wchar_t* text, unsigned long textLength, const D2D1_RECT_F& rect)
+void CD2TextWriter::layedOutDraw(const wchar_t* text, unsigned long textLength, float maxWidth, float maxHeight, const D2D_POINT_2F& pos)
 {
 	if (m_pStoredD2d1DeviceContext == nullptr || m_pDWriteTextFormat == nullptr || m_pD2d1SolidColorBrush == nullptr)
 	{
@@ -108,21 +97,21 @@ void CD2TextWriter::layedOutDraw(const wchar_t* text, unsigned long textLength, 
 	}
 
 	CComPtr<IDWriteTextLayout>pDWriteTextLayout;
-	HRESULT hr = m_pDWriteFactory->CreateTextLayout(text, textLength, m_pDWriteTextFormat, rect.right - rect.left, rect.bottom - rect.top, &pDWriteTextLayout);
+	HRESULT hr = m_pDWriteFactory->CreateTextLayout(text, textLength, m_pDWriteTextFormat, maxWidth, maxHeight, &pDWriteTextLayout);
 
 	CComPtr<IDWriteTextLayout1>pDWriteTextLayout1;
 	hr = pDWriteTextLayout->QueryInterface(__uuidof(IDWriteTextLayout1), (void**)&pDWriteTextLayout1);
 
-	DWRITE_TEXT_RANGE sRange{ 0, textLength };
-	hr = pDWriteTextLayout1->SetCharacterSpacing(1.f, 1.f, 2.f, sRange);
-	pDWriteTextLayout1->SetFontWeight(DWRITE_FONT_WEIGHT::DWRITE_FONT_WEIGHT_EXTRA_BOLD, sRange);
+	DWRITE_TEXT_RANGE textRange{ 0, textLength };
+	hr = pDWriteTextLayout1->SetCharacterSpacing(1.f, 1.f, 2.f, textRange);
+	pDWriteTextLayout1->SetFontWeight(DWRITE_FONT_WEIGHT::DWRITE_FONT_WEIGHT_EXTRA_BOLD, textRange);
 
 	m_pStoredD2d1DeviceContext->BeginDraw();
-	m_pStoredD2d1DeviceContext->DrawTextLayout(D2D1_POINT_2F{ rect.left, rect.top }, pDWriteTextLayout1, m_pD2d1SolidColorBrush);
+	m_pStoredD2d1DeviceContext->DrawTextLayout(pos, pDWriteTextLayout1, m_pD2d1SolidColorBrush);
 	m_pStoredD2d1DeviceContext->EndDraw();
 }
 
-void CD2TextWriter::outLinedDraw(const wchar_t* text, size_t textLength, const D2D1_RECT_F& rect)
+void CD2TextWriter::outLinedDraw(const wchar_t* text, size_t textLength, float maxWidth, const D2D_POINT_2F& pos)
 {
 	if (m_pStoredD2d1DeviceContext == nullptr || m_pD2d1SolidColorBrush == nullptr || m_pD2dSolidColorBrushForOutline == nullptr || m_pDWriteFontFace == nullptr)
 	{
@@ -133,8 +122,7 @@ void CD2TextWriter::outLinedDraw(const wchar_t* text, size_t textLength, const D
 	m_pDWriteFontFace->GetMetrics(&fontMetrics);
 	const float scale = pointSizeToDip(m_fFontSize) / fontMetrics.designUnitsPerEm;
 
-	const D2D1_SIZE_F targetSize = m_pStoredD2d1DeviceContext->GetSize();
-	const float maxWidth = (targetSize.width - (rect.left - rect.right));
+	const bool toWrap = ::isgreater(maxWidth, 0.f);
 	float accumulatedWidth = 0.f;
 
 	UINT32 textBuffer[kMaxLineCharacters]{};
@@ -144,14 +132,13 @@ void CD2TextWriter::outLinedDraw(const wchar_t* text, size_t textLength, const D
 	const auto& drawTextBuffer = [&]()
 		-> void
 		{
-			D2D1_POINT_2F fPos{ rect.left, rect.top + line * pointSizeToDip(m_fFontSize) };
+			D2D1_POINT_2F linePos{ pos.x, pos.y + line * pointSizeToDip(m_fFontSize) };
 
 			m_pStoredD2d1DeviceContext->BeginDraw();
-			drawSingleLineGlyphai(textBuffer, textBufferLength, fPos);
+			drawSingleLineGlyphai(textBuffer, textBufferLength, linePos);
 			m_pStoredD2d1DeviceContext->EndDraw();
 
 			textBufferLength = 0;
-			accumulatedWidth = 0;
 			++line;
 		};
 
@@ -168,25 +155,35 @@ void CD2TextWriter::outLinedDraw(const wchar_t* text, size_t textLength, const D
 		}
 
 		const wchar_t c = *pRead;
-		if (c == '\r')continue;
-		else if (c == '\n')
+		if (c == L'\r')continue;
+		else if (c == L'\n')
 		{
 			drawTextBuffer();
+			accumulatedWidth = 0;
 			continue;
 		}
 
-		size_t nLastRemained = nRemained;
-		UINT32 codePoint = stepUtf16(&pRead, &nRemained);
+		const size_t nLastRemained = nRemained;
+		const UINT32 codePoint = stepUtf16(&pRead, &nRemained);
 		if (nLastRemained - nRemained == 2)++nRead;
 
 		const DWRITE_GLYPH_METRICS glyphMetrics = getSingleGlyphMetrics(codePoint);
-		accumulatedWidth += glyphMetrics.advanceWidth * scale;
-		if (::isgreater(accumulatedWidth, maxWidth))
+		const float glyphWidth = glyphMetrics.advanceWidth * scale;
+		accumulatedWidth += glyphWidth;
+		if (toWrap && ::isgreater(accumulatedWidth, maxWidth))
 		{
 			drawTextBuffer();
+			/* 次行に持ち越し */
+			accumulatedWidth = glyphWidth;
 		}
 
 		textBuffer[textBufferLength++] = codePoint;
+
+		if (textBufferLength >= kMaxLineCharacters)
+		{
+			drawTextBuffer();
+			accumulatedWidth = 0;
+		}
 	}
 }
 
@@ -215,12 +212,87 @@ D2D1_SIZE_F CD2TextWriter::getGlyphSize(const wchar_t* text, size_t textLength, 
 	return { glyphMetrics.advanceWidth * scale, glyphMetrics.advanceHeight * scale };
 }
 
+D2D1_SIZE_F CD2TextWriter::calculateTextBounds(const wchar_t* text, size_t textLength, float wrapWidth)
+{
+	D2D1_SIZE_F bounds{};
+	DWRITE_FONT_METRICS fontMetrics;
+	m_pDWriteFontFace->GetMetrics(&fontMetrics);
+	const float scale = pointSizeToDip(m_fFontSize) / fontMetrics.designUnitsPerEm;
+
+	const bool toWrap = ::isgreater(wrapWidth, 0.f);
+	float accumulatedWidth = 0.f;
+	float heightOfLine = 0.f;
+
+	UINT32 textBuffer[kMaxLineCharacters]{};
+	size_t textBufferLength = 0;
+	size_t line = 0;
+
+	const auto& wrapLine = [&]()
+		-> void
+		{
+			bounds.width = ::isgreater(accumulatedWidth, bounds.width) ? accumulatedWidth : bounds.width;
+			bounds.height += heightOfLine;
+
+			textBufferLength = 0;
+			heightOfLine = 0;
+			++line;
+		};
+
+	for (size_t nRead = 0;; ++nRead)
+	{
+		const wchar_t* pRead = text + nRead;
+		size_t nRemained = textLength - nRead;
+
+		if (nRead >= textLength)
+		{
+			wrapLine();
+			break;
+		}
+
+		const wchar_t c = *pRead;
+		if (c == L'\r')continue;
+		else if (c == L'\n')
+		{
+			wrapLine();
+			accumulatedWidth = 0;
+			continue;
+		}
+
+		const size_t nLastRemained = nRemained;
+		const UINT32 codePoint = stepUtf16(&pRead, &nRemained);
+		if (nLastRemained - nRemained == 2)++nRead;
+
+		const DWRITE_GLYPH_METRICS glyphMetrics = getSingleGlyphMetrics(codePoint);
+		const float glyphHeight = glyphMetrics.advanceHeight * scale;
+		const float glyphWidth = glyphMetrics.advanceWidth * scale;
+
+		heightOfLine = ::isgreater(glyphHeight, heightOfLine) ? glyphHeight : heightOfLine;
+		accumulatedWidth += glyphWidth;
+		if (toWrap && ::isgreater(accumulatedWidth, wrapWidth))
+		{
+			wrapLine();
+			heightOfLine = glyphHeight;
+			accumulatedWidth = glyphWidth;
+		}
+
+		textBuffer[textBufferLength++] = codePoint;
+
+		if (textBufferLength >= kMaxLineCharacters)
+		{
+			wrapLine();
+			accumulatedWidth = 0;
+		}
+	}
+
+	return bounds;
+}
+
 bool CD2TextWriter::hasBoldStyle() const
 {
 	if (m_pDWriteFontFace != nullptr)
 	{
-		DWRITE_FONT_SIMULATIONS fontSimulatioms = m_pDWriteFontFace->GetSimulations();
-		return fontSimulatioms & DWRITE_FONT_SIMULATIONS::DWRITE_FONT_SIMULATIONS_BOLD;
+		DWRITE_FONT_SIMULATIONS fontSimulations = m_pDWriteFontFace->GetSimulations();
+		return fontSimulations & DWRITE_FONT_SIMULATIONS::DWRITE_FONT_SIMULATIONS_BOLD;
 	}
 	else if (m_pDWriteTextFormat != nullptr)
 	{
@@ -235,8 +307,8 @@ bool CD2TextWriter::hasItalicStyle() const
 {
 	if (m_pDWriteFontFace != nullptr)
 	{
-		DWRITE_FONT_SIMULATIONS fontSimulatioms = m_pDWriteFontFace->GetSimulations();
-		return fontSimulatioms & DWRITE_FONT_SIMULATIONS::DWRITE_FONT_SIMULATIONS_OBLIQUE;
+		DWRITE_FONT_SIMULATIONS fontSimulations = m_pDWriteFontFace->GetSimulations();
+		return fontSimulations & DWRITE_FONT_SIMULATIONS::DWRITE_FONT_SIMULATIONS_OBLIQUE;
 	}
 	else if (m_pDWriteTextFormat != nullptr)
 	{
@@ -255,12 +327,13 @@ bool CD2TextWriter::getFontFamilyName(wchar_t* fontFamilyNameBuffer, unsigned lo
 
 		return m_pDWriteTextFormat->GetFontFamilyName(fontFamilyNameBuffer, bufferSize) == S_OK;
 	}
+
 	return false;
 }
 
-void CD2TextWriter::onScaleChanged()
+void CD2TextWriter::onDpiChanged(unsigned int dpi)
 {
-	m_dpi = ::GetDpiForSystem();
+	m_dpi = dpi;
 }
 
 float CD2TextWriter::pointSizeToDip(float fPointSize) const
@@ -336,11 +409,11 @@ bool CD2TextWriter::drawSingleLineGlyphai(const UINT32* codePoints, size_t codeP
 
 	pD2d1GeometrySink->Close();
 
-	D2D1_RECT_F fGeoRect{};
-	pD2d1PathGeometry->GetBounds(nullptr, &fGeoRect);
-	D2D1_POINT_2F fPos = { originalPos.x - fGeoRect.left, originalPos.y - fGeoRect.top };
+	D2D1_RECT_F glyphaiBounds{};
+	pD2d1PathGeometry->GetBounds(nullptr, &glyphaiBounds);
+	D2D1_POINT_2F posToTranslate = { originalPos.x - glyphaiBounds.left, originalPos.y - glyphaiBounds.top };
 
-	m_pStoredD2d1DeviceContext->SetTransform(D2D1::Matrix3x2F::Translation(fPos.x, fPos.y));
+	m_pStoredD2d1DeviceContext->SetTransform(D2D1::Matrix3x2F::Translation(posToTranslate.x, posToTranslate.y));
 	m_pStoredD2d1DeviceContext->DrawGeometry(pD2d1PathGeometry, m_isColourReversed ? m_pD2d1SolidColorBrush : m_pD2dSolidColorBrushForOutline, pointSizeToDip(m_fThickness));
 	m_pStoredD2d1DeviceContext->FillGeometry(pD2d1PathGeometry, m_isColourReversed ? m_pD2dSolidColorBrushForOutline : m_pD2d1SolidColorBrush);
 	m_pStoredD2d1DeviceContext->SetTransform(D2D1::Matrix3x2F::Identity());

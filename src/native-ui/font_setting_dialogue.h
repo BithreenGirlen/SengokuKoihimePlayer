@@ -11,7 +11,18 @@ public:
 	CFontSettingDialogue();
 	~CFontSettingDialogue();
 
-	HWND open(HINSTANCE hInstance, HWND hWndParent, const wchar_t* pwzWindowName, void *pTextWriter);
+	struct FontCallbackDatum
+	{
+		const wchar_t* const fontFamilyName;
+		const wchar_t* const localeName;
+		const wchar_t* const fontFilePath;
+		const float fontSize;
+		const float fontThickness;
+		const bool bold;
+		const bool italic;
+	};
+
+	HWND open(HINSTANCE hInstance, HWND hWndParent, const wchar_t* pwzWindowName, void* pTextWriter, void (*pFontChangeCallback)(void* pUserDatum, FontCallbackDatum* pFontCallbackDatum) = nullptr, void* pCallbackUserDatum = nullptr);
 
 	HWND getHwnd()const { return m_hWnd; }
 private:
@@ -57,5 +68,8 @@ private:
 	void setSliderPosition();
 
 	void* m_pTextWriter = nullptr;
+
+	void(*m_pFontChangeCallback)(void* pUserDatum, FontCallbackDatum* pFontCallbackDatum) = nullptr;
+	void* m_pCallbackUserDatum = nullptr;
 };
 #endif // !FONT_SETTING_DIALOGUE_H_

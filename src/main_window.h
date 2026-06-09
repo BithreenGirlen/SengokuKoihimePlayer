@@ -2,6 +2,7 @@
 #define MAIN_WINDOW_H_
 
 #include <Windows.h>
+#include <atlbase.h>
 
 #include <string>
 #include <vector>
@@ -106,11 +107,15 @@ private:
 	CFontSettingDialogue m_fontSettingDialogue;
 
 	CWinClock m_textClock;
+	CComPtr<ID2D1Bitmap1> m_pSceneTextBitmap;
 
 	void checkTextClock();
 	void shiftText(bool forward);
 	void updateText();
 	void autoTexting();
+
+	void recreateSceneTextBitmap();
+	void drawTextOnBitmap(CD2TextWriter* pTextWriter, const wchar_t* text, size_t textLength, ID2D1Bitmap1** targetBitmap, float wrapWidth = 0.f);
 };
 
 #endif //MAIN_WINDOW_H_

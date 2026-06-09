@@ -19,14 +19,19 @@ public:
 	bool setupOutLinedDrawing(const wchar_t* fontFilePath, bool toSmulateBold = true, bool toSimulateItalic = true, float fontSize = kfDefaultFontSize, float thickness = kfDefaultThickness);
 
 	/// @brief Draw without outline
-	void draw(const wchar_t* text, unsigned long textLength, const D2D1_RECT_F& rect = D2D1_RECT_F{});
+	void simpleDraw(const wchar_t* text, unsigned long textLength, const D2D1_RECT_F& layoutRect = {});
 	/// @brief Draw with fixed space between characters
-	void layedOutDraw(const wchar_t* text, unsigned long textLength, const D2D1_RECT_F& rect = D2D1_RECT_F{});
+	void layedOutDraw(const wchar_t* text, unsigned long textLength, float maxWidth, float maxHeight, const D2D_POINT_2F& pos = {});
 	/// @brief Draw characters having outline
-	void outLinedDraw(const wchar_t* text, size_t textLength, const D2D1_RECT_F& rect = D2D1_RECT_F{});
+	/// @param wrapWidth maximum width to wrap text; 0 to wrap on newline only.
+	/// @param pos offset position of the text on target
+	void outLinedDraw(const wchar_t* text, size_t textLength, float wrapWidth = 0.f, const D2D_POINT_2F& pos = {});
 
 	/// @brief Get the width and height of a character when drawn with outline
 	D2D1_SIZE_F getGlyphSize(const wchar_t* text, size_t textLength, size_t* nConsumed = nullptr);
+	/// @brief Calculate the size of wrapped tex
+	/// @param wrapWidth maximum width to wrap text; 0 to wrap on newline only.
+	D2D1_SIZE_F calculateTextBounds(const wchar_t* text, size_t textLength, float wrapWidth = 0.f);
 
 	void toggleTextColour() { m_isColourReversed ^= true; }
 
@@ -41,7 +46,8 @@ public:
 	/// @brief Write font family name to buffer; Pass wchar_t buffer[LOCALE_NAME_MAX_LENGTH]
 	bool getFontFamilyName(wchar_t* fontFamilyNamebuffer, unsigned long bufferSize);
 
-	void onScaleChanged();
+	/// @brief Pass the result of GetDpiForWindow()
+	void onDpiChanged(unsigned int dpi);
 private:
 	static constexpr float kfDefaultFontSize = 24.f;
 	static constexpr float kfDefaultThickness = 3.2f;
