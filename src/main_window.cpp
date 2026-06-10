@@ -141,17 +141,24 @@ LRESULT CMainWindow::HandleMessage(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM l
 /* WM_CREATE */
 LRESULT CMainWindow::onCreate(HWND hWnd)
 {
+	static constexpr const wchar_t defaultFontPath[] = L"C:\\Windows\\Fonts\\yumindb.ttf";
+
 	m_hWnd = hWnd;
 
 	initialiseMenuBar();
 
 	m_pD2ImageDrawer = new CD2ImageDrawer(m_hWnd);
 
-	m_pD2TextWriter = new CD2TextWriter(m_pD2ImageDrawer->getD2Factory(), m_pD2ImageDrawer->getD2DeviceContext());
-	m_pD2TextWriter->setupOutLinedDrawing(L"C:\\Windows\\Fonts\\yumindb.ttf");
-	m_pD2TextWriter->onDpiChanged(::GetDpiForWindow(m_hWnd));
+	m_pSceneTextWriter = new CD2TextWriter(m_pD2ImageDrawer->getD2Factory(), m_pD2ImageDrawer->getD2DeviceContext());
+	m_pSceneTextWriter->setupOutLinedDrawing(defaultFontPath);
+	m_pSceneTextWriter->onDpiChanged(::GetDpiForWindow(m_hWnd));
 
 	m_pSngkSceneCrafter = new CSngkSceneCrafter(m_pD2ImageDrawer->getD2DeviceContext());
+
+	m_pHelpTextWriter = new CD2TextWriter(m_pD2ImageDrawer->getD2Factory(), m_pD2ImageDrawer->getD2DeviceContext());
+	m_pHelpTextWriter->setupOutLinedDrawing(defaultFontPath, false, false, m_pSceneTextWriter->getFontSize() / 2.f, m_pSceneTextWriter->getThickness());
+	m_pHelpTextWriter->onDpiChanged(::GetDpiForWindow(m_hWnd));
+	recreateHelpTextBitmap();
 
 	return 0;
 }
@@ -170,16 +177,22 @@ LRESULT CMainWindow::onClose()
 		::SendMessage(m_fontSettingDialogue.getHwnd(), WM_CLOSE, 0, 0);
 	}
 
+	if (m_pHelpTextWriter != nullptr)
+	{
+		delete m_pHelpTextWriter;
+		m_pHelpTextWriter = nullptr;
+	}
+
 	if (m_pSngkSceneCrafter != nullptr)
 	{
 		delete m_pSngkSceneCrafter;
 		m_pSngkSceneCrafter = nullptr;
 	}
 
-	if (m_pD2TextWriter != nullptr)
+	if (m_pSceneTextWriter != nullptr)
 	{
-		delete m_pD2TextWriter;
-		m_pD2TextWriter = nullptr;
+		delete m_pSceneTextWriter;
+		m_pSceneTextWriter = nullptr;
 	}
 
 	if (m_pD2ImageDrawer != nullptr)
@@ -199,7 +212,7 @@ LRESULT CMainWindow::onPaint()
 	PAINTSTRUCT ps{};
 	HDC hDC = ::BeginPaint(m_hWnd, &ps);
 
-	if (m_pD2ImageDrawer == nullptr || m_pD2TextWriter == nullptr || m_pSngkSceneCrafter == nullptr || !m_pSngkSceneCrafter->hasScenarioData())
+	if (m_pD2ImageDrawer == nullptr || m_pSceneTextWriter == nullptr || m_pSngkSceneCrafter == nullptr || !m_pSngkSceneCrafter->hasScenarioData())
 	{
 		::EndPaint(m_hWnd, &ps);
 		return 0;
@@ -229,16 +242,28 @@ LRESULT CMainWindow::onPaint()
 		m_pD2ImageDrawer->getD2DeviceContext()->SetTransform(transformMatrix);
 		m_pD2ImageDrawer->draw(pD2d1Bitmap);
 		m_pD2ImageDrawer->getD2DeviceContext()->SetTransform(D2D1::Matrix3x2F::Identity());
-	}
 
-	if (!m_isTextHidden)
-	{
-		if (m_pSceneTextBitmap != nullptr)
+		/* Let the help be behind the scene text if the window is much scaled down. */
+		if (!m_sceneState.isHelpTextHidden)
 		{
-			m_pD2ImageDrawer->draw(m_pSceneTextBitmap);
+			if (m_pHelpTextBitmap != nullptr)
+			{
+				D2D1_SIZE_U helpTextSize = m_pHelpTextBitmap->GetPixelSize();
+				D2D_POINT_2F textOffset{ 0, static_cast<float>(targetHeight - helpTextSize.height) };
+				m_pD2ImageDrawer->draw(m_pHelpTextBitmap, &textOffset);
+			}
 		}
+
+		if (!m_sceneState.isSceneTextHidden)
+		{
+			if (m_pSceneTextBitmap != nullptr)
+			{
+				m_pD2ImageDrawer->draw(m_pSceneTextBitmap);
+			}
+		}
+
+		m_pD2ImageDrawer->display();
 	}
-	m_pD2ImageDrawer->display();
 
 	updateScreen();
 
@@ -286,14 +311,22 @@ LRESULT CMainWindow::onKeyUp(WPARAM wParam, LPARAM lParam)
 		menuOnNextFolder();
 		break;
 	case 'C':
-		if (m_pD2TextWriter != nullptr)
+		if (m_pSceneTextWriter != nullptr)
 		{
-			m_pD2TextWriter->toggleTextColour();
+			m_pSceneTextWriter->toggleTextColour();
 			recreateSceneTextBitmap();
 		}
+		if (m_pHelpTextWriter != nullptr)
+		{
+			m_pHelpTextWriter->toggleTextColour();
+			recreateHelpTextBitmap();
+		}
+		break;
+	case 'H':
+		m_sceneState.isHelpTextHidden ^= true;
 		break;
 	case 'T':
-		m_isTextHidden ^= true;
+		m_sceneState.isSceneTextHidden ^= true;
 		break;
 	}
 	return 0;
@@ -410,7 +443,7 @@ LRESULT CMainWindow::onLButtonUp(WPARAM wParam, LPARAM lParam)
 
 	WORD pressedKey = LOWORD(wParam);
 
-	if (pressedKey == MK_RBUTTON && m_isMenuBarHidden)
+	if (pressedKey == MK_RBUTTON && m_windowState.isBorderless)
 	{
 		::PostMessage(m_hWnd, WM_SYSCOMMAND, SC_MOVE, 0);
 		INPUT input{};
@@ -583,16 +616,25 @@ void CMainWindow::menuOnFontSetting()
 {
 	if (m_fontSettingDialogue.getHwnd() == nullptr)
 	{
-		const auto FontChangeCallback = [](void* pUserDatum, CFontSettingDialogue::FontCallbackDatum *pFontCallbackDatum)
+		const auto FontChangeCallback = [](void* pUserDatum, CFontSettingDialogue::FontCallbackDatum* pFontCallbackDatum)
 			-> void
 			{
 				CMainWindow* pThis = static_cast<CMainWindow*>(pUserDatum);
 				if (pThis != nullptr)
 				{
 					pThis->recreateSceneTextBitmap();
+
+					if (pThis->m_pHelpTextWriter != nullptr || pFontCallbackDatum != nullptr)
+					{
+						auto* p = pFontCallbackDatum;
+						/* Keep font size and thickness unchanged. */
+						pThis->m_pHelpTextWriter->setFontByFontName(p->fontFamilyName, p->localeName, false, false, pThis->m_pHelpTextWriter->getFontSize());
+						pThis->m_pHelpTextWriter->setupOutLinedDrawing(p->fontFilePath, false, false, pThis->m_pHelpTextWriter->getFontSize(), pThis->m_pHelpTextWriter->getThickness());
+						pThis->recreateHelpTextBitmap();
+					}
 				}
 			};
-		HWND hWnd = m_fontSettingDialogue.open(m_hInstance, m_hWnd, L"Font", m_pD2TextWriter, FontChangeCallback, this);
+		HWND hWnd = m_fontSettingDialogue.open(m_hInstance, m_hWnd, L"Font", m_pSceneTextWriter, FontChangeCallback, this);
 		::SendMessage(hWnd, WM_SETICON, ICON_SMALL, ::GetClassLongPtr(m_hWnd, GCLP_HICON));
 		::ShowWindow(hWnd, SW_SHOWNORMAL);
 	}
@@ -644,9 +686,9 @@ void CMainWindow::toggleWindowBorderStyle()
 	::GetWindowRect(m_hWnd, &rect);
 	LONG lStyle = ::GetWindowLong(m_hWnd, GWL_STYLE);
 
-	m_isMenuBarHidden ^= true;
+	m_windowState.isBorderless ^= true;
 
-	if (m_isMenuBarHidden)
+	if (m_windowState.isBorderless)
 	{
 		MONITORINFO monitorInfo{ .cbSize = sizeof(MONITORINFO) };
 		if (HMONITOR hMonitor = ::MonitorFromWindow(m_hWnd, MONITOR_DEFAULTTONEAREST); hMonitor != nullptr)
@@ -759,7 +801,30 @@ void CMainWindow::recreateSceneTextBitmap()
 
 	const std::wstring& sceneText = m_pSngkSceneCrafter->getCurrentFormattedText();
 	m_pSceneTextBitmap.Release();
-	drawTextOnBitmap(m_pD2TextWriter, sceneText.c_str(), sceneText.size(), &m_pSceneTextBitmap, static_cast<float>(rc.right - rc.left));
+	drawTextOnBitmap(m_pSceneTextWriter, sceneText.c_str(), sceneText.size(), &m_pSceneTextBitmap, static_cast<float>(rc.right - rc.left));
+}
+
+void CMainWindow::recreateHelpTextBitmap()
+{
+	static constexpr wchar_t helpText[] =
+	{
+		L"[H] Hide/show help\n"
+		L"[T] Hide/show scene text\n"
+		L"[C] Toggle text colour\n"
+		L"[Wheel] Scale up/down\n"
+		L"[L-drag] Move view-point\n"
+		L"[L-pressed + wheel] Speed up/down the animation\n"
+		L"[M-click] Reset scale and view-point\n"
+		L"[R-click] Show context menu to jump scene\n"
+		L"[R-pressed + M-click] Hide/show the border of window\n"
+		L"[R-pressed + L-click] Move borderless window\n"
+		L"[← | →; R-pressed + wheel] Rewind/fast-forward the scene text\n"
+		L"[↑ | ↓] Open the previous/next script\n"
+	};
+	static constexpr size_t helpTextLength = sizeof(helpText) / sizeof(wchar_t) - 1;
+
+	m_pHelpTextBitmap.Release();
+	drawTextOnBitmap(m_pHelpTextWriter, helpText, helpTextLength, &m_pHelpTextBitmap);
 }
 
 void CMainWindow::drawTextOnBitmap(CD2TextWriter* pTextWriter, const wchar_t* text, size_t textLength, ID2D1Bitmap1** targetBitmap, float wrapWidth)

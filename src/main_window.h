@@ -70,11 +70,15 @@ private:
 		POINT lastMousePos{};
 	};
 
+	struct WindowState
+	{
+		bool isBorderless = false;
+	};
+
 	MouseState m_mouseState;
+	WindowState m_windowState;
 
 	HMENU m_hMenuBar = nullptr;
-	bool m_isMenuBarHidden = false;
-	bool m_isTextHidden = false;
 
 	std::vector<std::wstring> m_folders;
 	size_t m_nFolderIndex = 0;
@@ -99,7 +103,7 @@ private:
 	void updateScreen() const;
 
 	CD2ImageDrawer* m_pD2ImageDrawer = nullptr;
-	CD2TextWriter* m_pD2TextWriter = nullptr;
+	CD2TextWriter* m_pSceneTextWriter = nullptr;
 	CMfMediaPlayer m_audioPlayer;
 	CViewManager m_viewManager;
 	CSngkSceneCrafter* m_pSngkSceneCrafter = nullptr;
@@ -108,6 +112,16 @@ private:
 
 	CWinClock m_textClock;
 	CComPtr<ID2D1Bitmap1> m_pSceneTextBitmap;
+	CD2TextWriter* m_pHelpTextWriter = nullptr;
+	CComPtr<ID2D1Bitmap1> m_pHelpTextBitmap;
+
+	struct SceneState
+	{
+		bool isSceneTextHidden = false;
+		bool isHelpTextHidden = false;
+	};
+
+	SceneState m_sceneState;
 
 	void checkTextClock();
 	void shiftText(bool forward);
@@ -115,6 +129,7 @@ private:
 	void autoTexting();
 
 	void recreateSceneTextBitmap();
+	void recreateHelpTextBitmap();
 	void drawTextOnBitmap(CD2TextWriter* pTextWriter, const wchar_t* text, size_t textLength, ID2D1Bitmap1** targetBitmap, float wrapWidth = 0.f);
 };
 
