@@ -20,7 +20,7 @@ namespace win_filesystem
 		size_t size() const { return m_nWritten; }
 		bool empty() const { return m_nWritten == 0; }
 		const wchar_t front() const { return m_data[0]; }
-		const wchar_t back() const { return m_data[m_nWritten]; }
+		const wchar_t back() const { return m_nWritten == 0 ? m_data[0] : m_data[m_nWritten - 1ULL]; }
 
 		std::wstring_view stringView() const
 		{
@@ -249,23 +249,23 @@ bool win_filesystem::CreateFilePathList(std::wstring_view folderPath, std::wstri
 		std::swap(fileNames[i], fileNames[nIndex]);
 	}
 
+	if (toAddParent)
+	{
+		for (std::wstring& fileName : fileNames)
+		{
+			fileName.insert(0, parentFolderPath.data(), parentFolderPath.size());
+		}
+	}
+
 	if (paths.empty())
 	{
 		paths = std::move(fileNames);
-		if (toAddParent)
-		{
-			for (std::wstring& path : paths)
-			{
-				path = parentFolderPath.data() + path;
-			}
-		}
 	}
 	else
 	{
 		for (std::wstring& fileName : fileNames)
 		{
-			if (toAddParent)paths.emplace_back(parentFolderPath.data() + fileName);
-			else paths.push_back(std::move(fileName));
+			paths.push_back(std::move(fileName));
 		}
 	}
 
@@ -277,7 +277,7 @@ bool win_filesystem::GetFilePathListAndIndex(std::wstring_view path, std::wstrin
 	size_t nPos = path.find_last_of(L"\\/");
 	if (nPos == std::wstring_view::npos)return false;
 
-	std::wstring_view parentPath = std::wstring_view(path.data(), nPos);
+	std::wstring_view parentPath = path.substr(0, nPos);
 
 	win_filesystem::CreateFilePathList(parentPath, fileSpec, paths);
 
