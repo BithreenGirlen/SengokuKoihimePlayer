@@ -199,13 +199,29 @@ LRESULT CMediaSettingDialogue::onSize()
 	long spaceX = clientWidth / 96 * 10;
 	long spaceY = clientHeight / 96;
 
-	long textSpace = Constants::kFontSize;
+	int fontHeight = static_cast<int>(Constants::kFontSize * ::GetDpiForSystem() / 96.f);
 
-	::MoveWindow(m_volumeIntSlider.getHwnd(), spaceX, spaceY + textSpace, clientWidth / 2 - spaceX * 2, clientHeight - spaceY * 2 - textSpace, TRUE);
-	::MoveWindow(m_volumeStatic.getHwnd(), spaceX, spaceY, Constants::kTextWidth, Constants::kFontSize, TRUE);
+	long x = spaceX;
+	long y = spaceY + fontHeight;
+	long w = clientWidth / 2 - spaceX * 2;
+	long h = clientHeight - spaceY * 2 - fontHeight;
+	::MoveWindow(m_volumeIntSlider.getHwnd(), x, y, w, h, TRUE);
 
-	::MoveWindow(m_rateFloatSlider.getHwnd(), clientWidth / 2 + spaceX, spaceY + textSpace, clientWidth / 2 - spaceX * 2, clientHeight - spaceY * 2 - textSpace, TRUE);
-	::MoveWindow(m_rateStatic.getHwnd(), clientWidth / 2 + spaceX, spaceY, Constants::kTextWidth, Constants::kFontSize, TRUE);
+	y = spaceY;
+	w = Constants::kTextWidth;
+	h = fontHeight;
+	::MoveWindow(m_volumeStatic.getHwnd(), x, y, w, h, TRUE);
+
+	x = clientWidth / 2 + spaceX;
+	y = spaceY + fontHeight;
+	w = clientWidth / 2 - spaceX * 2;
+	h = clientHeight - spaceY * 2 - fontHeight;
+	::MoveWindow(m_rateFloatSlider.getHwnd(), x, y, w, h, TRUE);
+
+	y = spaceY;
+	w = Constants::kTextWidth;
+	h = fontHeight;
+	::MoveWindow(m_rateStatic.getHwnd(), x, y, w, h, TRUE);
 
 	return 0;
 }
